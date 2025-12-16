@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>项目全周期管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              border: "hsl(var(--border))",
+              input: "hsl(var(--input))",
+              ring: "hsl(var(--ring))",
+              background: "hsl(var(--background))",
+              foreground: "hsl(var(--foreground))",
+              primary: {
+                DEFAULT: "hsl(var(--primary))",
+                foreground: "hsl(var(--primary-foreground))",
+              },
+              secondary: {
+                DEFAULT: "hsl(var(--secondary))",
+                foreground: "hsl(var(--secondary-foreground))",
+              },
+              destructive: {
+                DEFAULT: "hsl(var(--destructive))",
+                foreground: "hsl(var(--destructive-foreground))",
+              },
+              muted: {
+                DEFAULT: "hsl(var(--muted))",
+                foreground: "hsl(var(--muted-foreground))",
+              },
+              accent: {
+                DEFAULT: "hsl(var(--accent))",
+                foreground: "hsl(var(--accent-foreground))",
+              },
+              popover: {
+                DEFAULT: "hsl(var(--popover))",
+                foreground: "hsl(var(--popover-foreground))",
+              },
+              card: {
+                DEFAULT: "hsl(var(--card))",
+                foreground: "hsl(var(--card-foreground))",
+              },
+            },
+            borderRadius: {
+              lg: "var(--radius)",
+              md: "calc(var(--radius) - 2px)",
+              sm: "calc(var(--radius) - 4px)",
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      :root {
+        --background: 210 16.6667% 97.6471%;
+        --foreground: 240 41.4634% 8.0392%;
+        --card: 0 0% 100%;
+        --card-foreground: 240 41.4634% 8.0392%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 240 41.4634% 8.0392%;
+        --primary: 312.9412 100% 50%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 240 100% 97.0588%;
+        --secondary-foreground: 240 41.4634% 8.0392%;
+        --muted: 240 100% 97.0588%;
+        --muted-foreground: 240 41.4634% 8.0392%;
+        --accent: 168 100% 50%;
+        --accent-foreground: 240 41.4634% 8.0392%;
+        --destructive: 14.3529 100% 50%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 198.0000 18.5185% 89.4118%;
+        --input: 198.0000 18.5185% 89.4118%;
+        --ring: 312.9412 100% 50%;
+        --radius: 0.5rem;
+      }
+      .dark {
+        --background: 240 41.4634% 8.0392%;
+        --foreground: 217.5000 26.6667% 94.1176%;
+        --card: 240 35.4839% 18.2353%;
+        --card-foreground: 217.5000 26.6667% 94.1176%;
+        --popover: 240 35.4839% 18.2353%;
+        --popover-foreground: 217.5000 26.6667% 94.1176%;
+        --primary: 312.9412 100% 50%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 240 35.4839% 18.2353%;
+        --secondary-foreground: 217.5000 26.6667% 94.1176%;
+        --muted: 240 39.1304% 13.5294%;
+        --muted-foreground: 232.1053 17.5926% 57.6471%;
+        --accent: 168 100% 50%;
+        --accent-foreground: 240 41.4634% 8.0392%;
+        --destructive: 14.3529 100% 50%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 240 34.2857% 27.4510%;
+        --input: 240 34.2857% 27.4510%;
+        --ring: 312.9412 100% 50%;
+      }
+      body {
+        font-family: "Outfit", sans-serif;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "recharts": "https://esm.sh/recharts@^3.5.1"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
