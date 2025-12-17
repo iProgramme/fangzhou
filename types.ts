@@ -46,6 +46,7 @@ export interface Project {
   responsiblePerson?: string; // 负责人
   region?: string; // 地区
   category?: string; // 项目类别
+  threeReviewType?: string; // 三审类型
   source?: string; // 项目来源
   contractNo?: string; // 合同编号
   contractStatus?: string; // 合同准备

@@ -18,6 +18,7 @@ export const EARLY_COLUMNS: ColumnDef[] = [
     { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
     { key: 'category', header: '项目类别', inputType: 'select', dictKey: '项目类别' },
+    { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
     { key: 'source', header: '项目来源', inputType: 'select', dictKey: '项目来源' },
     { key: 'contractStatus', header: '合同准备', inputType: 'select', dictKey: '合同准备' },
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
@@ -46,6 +47,7 @@ export const EARLY_COLUMNS: ColumnDef[] = [
 export const COLLECTION_COLUMNS: ColumnDef[] = [
     { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
+    { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
     { key: 'collectionTarget', header: '收款', inputType: 'text' }, // Specified as string:input
     { key: 'paymentLevel', header: '收款等级', inputType: 'select', dictKey: '收款等级' },
     { key: 'completionStatus', header: '完成情况', render: renderBoolean, inputType: 'boolean' },
@@ -58,6 +60,7 @@ export const PROGRESS_COLUMNS: ColumnDef[] = [
     { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
     { key: 'category', header: '项目类别', inputType: 'select', dictKey: '项目类别' },
+    { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
     { key: 'source', header: '项目来源', inputType: 'select', dictKey: '项目来源' },
     { key: 'contractNo', header: '合同编号', inputType: 'text' },
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
@@ -87,6 +90,7 @@ export const COMPLETED_COLUMNS: ColumnDef[] = [
     { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
     { key: 'category', header: '项目类别', inputType: 'select', dictKey: '项目类别' },
+    { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
     { key: 'source', header: '项目来源', inputType: 'select', dictKey: '项目来源' },
     { key: 'contractNo', header: '合同编号', inputType: 'text' },
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },

@@ -1,3 +1,4 @@
+
 import { Project, ProjectStage, Department, User, SystemDictionary, OperationLog, DictItem } from '../types';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -43,6 +44,7 @@ const RAW_DICTIONARIES = {
     '系统年份': ['2024', '2025', '2026', '2027'], // Added as requested
     '地区': ['全市', '全区', '空港', '新华', '新雅', '狮岭', '花山', '花东', '赤坭', '炭步', '秀全', '梯面', '花城', '汽车城', '海珠', '天河', '越秀', '西安', '黄埔', '中山', '番禺', '白云', '其他'],
     '项目类别': ['城市设计/概念规划', '地下空间', '村镇工业集聚区', '法定详细规划', '交通咨询/评估', '市政工程/评估', '国土空间和土地储备', '工改工完善用地手续', '微改造', '做地', '全流程用地服务', '村庄规划', '桥下空间', '建筑工程设计', '城市更新'],
+    '三审类型': ['院重点项目', '院管项目', '所管项目'],
     '项目来源': ['市规自局', '市住建局', '区规自局+土发', '区住建局', '区交通局', '区项目服务中心', '市空港委', '镇街政府', '村委会/经济社', '国有企业', '私营企业', '其他区职能部门', '其他区镇街'],
     '合同准备': ['2026合同', '2025年合同', '重大项目经费申报', '前期研判', '25/26拆开', '历史项目补签合同'],
     '前期备注': ['靠谱', '一般', '先跟进', '重大项目前期经费', 'PASS'], 
@@ -79,6 +81,7 @@ export const MOCK_PROJECTS: Project[] = [
     responsiblePerson: "张三",
     region: "空港",
     category: "国土空间和土地储备",
+    threeReviewType: "院重点项目",
     source: "市规自局",
     contractStatus: "2025年合同",
     remarks: "靠谱",
@@ -97,6 +100,7 @@ export const MOCK_PROJECTS: Project[] = [
     name: "中央公园排水系统改造",
     clientName: "城市基建集团",
     category: "市政工程/评估",
+    threeReviewType: "所管项目",
     source: "国有企业",
     type: "半传统",
     totalAmount: 3000000,
@@ -121,6 +125,7 @@ for (let i = 0; i < 80; i++) {
   const source = INITIAL_DICTIONARIES['项目来源'][Math.floor(Math.random() * INITIAL_DICTIONARIES['项目来源'].length)].label;
   const category = INITIAL_DICTIONARIES['项目类别'][Math.floor(Math.random() * INITIAL_DICTIONARIES['项目类别'].length)].label;
   const type = INITIAL_DICTIONARIES['项目类型'][Math.floor(Math.random() * INITIAL_DICTIONARIES['项目类型'].length)].label;
+  const threeReview = INITIAL_DICTIONARIES['三审类型'][Math.floor(Math.random() * INITIAL_DICTIONARIES['三审类型'].length)].label;
   
   const totalAmount = Math.floor(Math.random() * 200) * 10000 + 50000; // 5w to 205w
   
@@ -158,6 +163,7 @@ for (let i = 0; i < 80; i++) {
     name: `模拟项目 ${i + 1} - ${category}`,
     source: source,
     category: category,
+    threeReviewType: threeReview,
     type: type, 
     region: INITIAL_DICTIONARIES['地区'][Math.floor(Math.random() * INITIAL_DICTIONARIES['地区'].length)].label,
     signingDate: `2024-0${Math.ceil(Math.random()*9)}-${Math.ceil(Math.random()*28)}`, // Random date

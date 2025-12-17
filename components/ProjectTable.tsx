@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Project, SystemDictionary, AnnualData } from '../types';
-import { Search, SlidersHorizontal, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, Calendar, Coins } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, Calendar, Coins, Filter } from 'lucide-react';
 
 export interface ColumnDef {
   key: keyof Project | 'actions' | 'annualContract' | 'annualCollection';
@@ -35,6 +35,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [visibleColumns, setVisibleColumns] = useState<string[]>(columns.map(c => c.key as string));
   const [showColumnToggle, setShowColumnToggle] = useState(false);
   const columnToggleRef = useRef<HTMLDivElement>(null);
@@ -80,6 +81,8 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   // Close toggle when data or columns change (switching views)
   useEffect(() => {
       setShowColumnToggle(false);
+      // Optional: Clear filters when switching views to avoid confusion
+      // setColumnFilters({}); 
   }, [data, columns, title]);
 
   // Filter Data
@@ -101,9 +104,18 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
              if (advancedFilters.minAmount && (item.totalAmount || 0) < Number(advancedFilters.minAmount)) return false;
         }
 
+        // Column Header Filters
+        for (const [key, filterVal] of Object.entries(columnFilters)) {
+            if (filterVal) {
+                const itemVal = item[key as keyof Project];
+                // Strict equality for dictionary items or checks if undefined
+                if (itemVal !== filterVal) return false;
+            }
+        }
+
         return true;
     });
-  }, [data, searchTerm, showAdvancedSearch, advancedFilters]);
+  }, [data, searchTerm, showAdvancedSearch, advancedFilters, columnFilters]);
 
   // Handlers
   const handleOpenAdd = () => {
@@ -152,6 +164,12 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       setVisibleColumns(prev => 
         prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
       );
+  };
+
+  const clearAllFilters = () => {
+      setColumnFilters({});
+      setSearchTerm('');
+      setAdvancedFilters({ clientName: '', responsiblePerson: '', minAmount: '' });
   };
 
   // Annual Data Helper
@@ -228,6 +246,17 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                 />
             </div>
             
+            {/* Clear Filters Button */}
+            {(Object.values(columnFilters).some(Boolean) || searchTerm || showAdvancedSearch) && (
+                 <button 
+                    onClick={clearAllFilters}
+                    className="h-9 px-3 rounded-md border border-dashed border-red-300 text-red-500 text-sm font-medium flex items-center gap-2 hover:bg-red-50 transition-colors"
+                >
+                    <X className="h-4 w-4" />
+                    清除
+                </button>
+            )}
+
             {/* Advanced Search Toggle */}
             <button 
                 onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
@@ -317,14 +346,39 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
               <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                 {columns.map((col) => {
                     if (col.key !== 'actions' && !visibleColumns.includes(col.key as string)) return null;
-                    // Dynamic Header for Annual Cols
+                    
                     let header = col.header;
                     if (col.key === 'annualContract') header = `${viewYear} 合同额`;
                     if (col.key === 'annualCollection') header = `${viewYear} 收款`;
 
+                    // Logic to check if filtering is enabled for this column
+                    const isFilterable = col.inputType === 'select' && col.dictKey && dictionaries?.[col.dictKey];
+                    const activeFilter = columnFilters[col.key as string];
+
                     return (
                         <th key={col.key as string} className="h-12 px-4 align-middle font-medium text-muted-foreground whitespace-nowrap">
-                            {header}
+                            <div className="flex items-center gap-2">
+                                <span>{header}</span>
+                                {isFilterable && (
+                                    <div className="relative group/filter cursor-pointer" title={`筛选 ${header}`}>
+                                        <Filter 
+                                            className={`h-3 w-3 transition-colors ${activeFilter ? 'text-primary fill-primary' : 'text-muted-foreground/40 group-hover/filter:text-primary'}`} 
+                                        />
+                                        {/* Invisible select over the icon to trigger standard browser dropdown */}
+                                        <select
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            value={activeFilter || ''}
+                                            onChange={(e) => setColumnFilters(prev => ({ ...prev, [col.key as string]: e.target.value }))}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <option value="">全部</option>
+                                            {dictionaries![col.dictKey!].map((opt) => (
+                                                <option key={opt.label} value={opt.label}>{opt.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
                         </th>
                     );
                 })}
