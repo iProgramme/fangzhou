@@ -48,14 +48,14 @@ const App: React.FC = () => {
 
   // Function to handle login
   const handleLogin = (username: string, department?: string, role?: string) => {
-    // In a real app, you'd fetch user details from an API after successful auth
-    // For now, construct a mock user object based on Login.tsx logic
-    const userInDb = users.find(u => u.name === username);
+    // Determine display name based on role
+    const displayName = role === 'admin' ? '超级管理员' : username;
+
     const mockUser: User = {
-      id: userInDb?.id || username, 
-      name: username === 'admin' ? '超级管理员' : username,
+      id: username, // Using username as ID for legacy compatibility in state
+      name: displayName,
       role: (role || 'user') as 'admin' | 'user' | 'manager',
-      department: department as any, // Cast to Department type if needed
+      department: department as any,
       status: 'active',
     };
 
@@ -75,12 +75,22 @@ const App: React.FC = () => {
       if (!currentUser) return;
 
       try {
-          // In this mock setup, we find the full user object from state and update it
-          const fullUser = users.find(u => u.name === currentUser.name || u.id === currentUser.id);
+          // Find user by ID or Name (handling the 'Super Admin' display name mapping)
+          const fullUser = users.find(u => 
+            u.id === currentUser.id || 
+            u.name === currentUser.name || 
+            (currentUser.role === 'admin' && u.name === 'admin')
+          );
+
           if (fullUser) {
               await updateUser({ ...fullUser, password: newPassword });
-              alert('密码修改成功，请重新登录');
+              alert('密码修改成功，请使用新密码重新登录');
               handleLogout();
+          } else if (currentUser.role === 'admin' && currentUser.name === '超级管理员') {
+              // Fallback for hardcoded admin if not in DB list yet
+              alert('当前超级管理员账号尚未在数据库中注册，请先在“系统设置”中添加 admin 账号。');
+          } else {
+              alert('未找到用户记录，请联系系统维护员。');
           }
       } catch (e) {
           alert('修改失败');

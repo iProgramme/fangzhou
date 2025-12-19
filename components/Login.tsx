@@ -28,13 +28,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     e.preventDefault();
     setError('');
 
-    // 1. Check for hardcoded admin first (for safety)
-    if (username === 'admin' && password === 'admin') {
-        onLogin(username, undefined, 'admin');
-        return;
-    }
-
-    // 2. Search in dynamic users list
+    // 1. Search in dynamic users list
     const user = dynamicUsers.find(u => u.name === username && u.status === 'active');
 
     if (user) {

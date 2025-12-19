@@ -219,7 +219,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
                 <KeyRound className="h-4 w-4" />
               </button>
               <button 
-                onClick={onLogout}
+                onClick={() => {
+                  if (window.confirm('确定要退出系统吗？')) {
+                    onLogout();
+                  }
+                }}
                 className="p-2 text-muted-foreground hover:text-destructive transition-colors"
                 title="退出登录"
               >

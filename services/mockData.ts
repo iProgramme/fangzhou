@@ -4,8 +4,9 @@ import { Project, ProjectStage, Department, User, SystemDictionary, OperationLog
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 export const CURRENT_USER: User = {
-    id: 'u-001',
-    name: '管理员(Admin)',
+    id: 'admin',
+    name: 'admin',
+    password: 'admin',
     role: 'admin',
     department: Department.COMPREHENSIVE,
     email: 'admin@institute.com',
@@ -14,9 +15,9 @@ export const CURRENT_USER: User = {
 
 export const MOCK_USERS: User[] = [
     CURRENT_USER,
-    { id: 'u-002', name: '张三', role: 'manager', department: Department.PLANNING_1, email: 'zhangsan@institute.com', status: 'active' },
-    { id: 'u-003', name: '李四', role: 'user', department: Department.MUNICIPAL, email: 'lisi@institute.com', status: 'active' },
-    { id: 'u-004', name: '王五', role: 'user', department: Department.TRAFFIC, email: 'wangwu@institute.com', status: 'inactive' },
+    { id: 'u-002', name: '张三', password: '123', role: 'manager', department: Department.PLANNING_1, email: 'zhangsan@institute.com', status: 'active' },
+    { id: 'u-003', name: '李四', password: '123', role: 'user', department: Department.MUNICIPAL, email: 'lisi@institute.com', status: 'active' },
+    { id: 'u-004', name: '王五', password: '123', role: 'user', department: Department.TRAFFIC, email: 'wangwu@institute.com', status: 'inactive' },
 ];
 
 // Color Presets for Tags
