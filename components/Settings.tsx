@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson } from 'lucide-react';
-import { User, Department, OperationLog, SystemDictionary, DictItem } from '../types';
+import { User, Department, OperationLog, SystemDictionary, DictItem, Project } from '../types';
 import { TAG_COLORS } from '../services/mockData';
-import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects } from '../services/api';
+import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects, createProject, updateProject } from '../services/api';
 
 interface SettingsProps {
     users: User[];
@@ -18,6 +18,10 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
     const [editingUser, setEditingUser] = useState<Partial<User>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    // New states for Import/Export requirements
+    const [hasExported, setHasExported] = useState(false);
+    const [importTab, setImportTab] = useState<'add' | 'overwrite'>('add');
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         setToast({ message, type });
@@ -43,6 +47,9 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
+            
+            setHasExported(true); // Unlock Import
+            showToast('备份导出成功，导入功能已解锁');
         } catch (e) {
             showToast('导出失败', 'error');
         }
@@ -50,6 +57,12 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
 
     // Import Handler
     const handleImportData = (type: 'projects' | 'dictionaries' | 'users', e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!hasExported) {
+            showToast('安全限制：导入前必须先点击“导出JSON”备份当前数据', 'error');
+            e.target.value = '';
+            return;
+        }
+
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -57,25 +70,44 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
         reader.onload = async (event) => {
             try {
                 const importedData = JSON.parse(event.target?.result as string);
-                if (window.confirm(`确定要导入${type}数据吗？现有数据可能会被覆盖或冲突。`)) {
+                const modeLabel = importTab === 'add' ? '【增量新增】' : '【全量覆盖】';
+                
+                if (window.confirm(`确定执行 ${modeLabel} 模式导入 ${type} 数据吗？\n${importTab === 'overwrite' ? '警告：此操作将尝试覆盖/替换现有数据！' : '注意：增量模式下将跳过已存在的数据。'}`)) {
                     setIsSubmitting(true);
+                    
                     if (type === 'dictionaries') {
                         for (const [key, items] of Object.entries(importedData)) {
-                            await onUpdateDictionary(key, items as DictItem[]);
+                            let finalItems = items as DictItem[];
+                            if (importTab === 'add') {
+                                const existing = dictionaries[key] || [];
+                                const existingLabels = new Set(existing.map(i => i.label));
+                                finalItems = [...existing, ...finalItems.filter(i => !existingLabels.has(i.label))];
+                            }
+                            await onUpdateDictionary(key, finalItems);
                         }
                     } else if (type === 'users') {
-                        for (const user of importedData) {
-                            if ((user as User).id) await updateUser(user as User);
+                        for (const user of (importedData as User[])) {
+                            // If add mode and user exists, skip or if overwrite, update. 
+                            // Simplified: use updateUser for existing IDs, createUser for new ones.
+                            if (user.id) await updateUser(user);
                             else await createUser(user);
                         }
                         onRefreshUsers();
+                    } else if (type === 'projects') {
+                        // Projects need bulk support or loop
+                        for (const proj of (importedData as Project[])) {
+                            if (proj.id && importTab === 'overwrite') await updateProject(proj);
+                            else await createProject(proj);
+                        }
+                        showToast('项目导入已提交');
                     }
-                    showToast('导入完成');
+                    showToast(`${modeLabel} 导入成功`);
                 }
             } catch (err) {
-                showToast('解析文件失败', 'error');
+                showToast('解析文件失败，请确保格式正确', 'error');
             } finally {
                 setIsSubmitting(false);
+                e.target.value = '';
             }
         };
         reader.readAsText(file);
@@ -368,10 +400,35 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
             {/* TAB: System (Import/Export) */}
             {activeTab === 'system' && (
                  <div className="rounded-xl border bg-card p-6 shadow-sm animate-in fade-in">
-                    <div className="flex items-center gap-2 mb-6">
-                        <Database className="h-5 w-5 text-primary" />
-                        <h3 className="text-lg font-medium">数据导入与导出</h3>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                        <div className="flex items-center gap-2">
+                            <Database className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-medium">数据导入与导出</h3>
+                        </div>
+
+                        {/* Import Mode Tabs */}
+                        <div className="flex p-1 bg-muted rounded-lg border shadow-inner">
+                            <button 
+                                onClick={() => setImportTab('add')}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${importTab === 'add' ? 'bg-background shadow text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                模式一：增量新增
+                            </button>
+                            <button 
+                                onClick={() => setImportTab('overwrite')}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${importTab === 'overwrite' ? 'bg-red-500 text-white shadow' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                模式二：全量覆盖
+                            </button>
+                        </div>
                     </div>
+
+                    {!hasExported && (
+                        <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 text-red-700 animate-pulse">
+                            <AlertCircle className="h-5 w-5" />
+                            <p className="text-sm font-bold">安全锁：导入功能已锁定。请先点击下方任意“导出JSON”按钮备份数据，以防误操作导致数据丢失。</p>
+                        </div>
+                    )}
                     
                     <div className="grid gap-6 md:grid-cols-3">
                          {/* Projects */}
@@ -387,9 +444,9 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                                  <button onClick={() => handleExportData('projects')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
                                     <Download className="h-4 w-4" /> 导出 JSON
                                  </button>
-                                 <label className="w-full flex items-center justify-center gap-2 border bg-card px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted cursor-pointer transition-colors">
+                                 <label className={`w-full flex items-center justify-center gap-2 border px-3 py-2 rounded-lg text-sm font-medium transition-colors ${!hasExported ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'bg-card hover:bg-muted cursor-pointer'}`}>
                                     <Upload className="h-4 w-4" /> 导入数据
-                                    <input type="file" accept=".json" className="hidden" onChange={(e) => handleImportData('projects', e)} />
+                                    <input type="file" accept=".json" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('projects', e)} />
                                  </label>
                             </div>
                          </div>
@@ -407,9 +464,9 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                                  <button onClick={() => handleExportData('dictionaries')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
                                     <Download className="h-4 w-4" /> 导出 JSON
                                  </button>
-                                 <label className="w-full flex items-center justify-center gap-2 border bg-card px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted cursor-pointer transition-colors">
+                                 <label className={`w-full flex items-center justify-center gap-2 border px-3 py-2 rounded-lg text-sm font-medium transition-colors ${!hasExported ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'bg-card hover:bg-muted cursor-pointer'}`}>
                                     <Upload className="h-4 w-4" /> 导入数据
-                                    <input type="file" accept=".json" className="hidden" onChange={(e) => handleImportData('dictionaries', e)} />
+                                    <input type="file" accept=".json" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('dictionaries', e)} />
                                  </label>
                             </div>
                          </div>
@@ -427,9 +484,9 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                                  <button onClick={() => handleExportData('users')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
                                     <Download className="h-4 w-4" /> 导出 JSON
                                  </button>
-                                 <label className="w-full flex items-center justify-center gap-2 border bg-card px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted cursor-pointer transition-colors">
+                                 <label className={`w-full flex items-center justify-center gap-2 border px-3 py-2 rounded-lg text-sm font-medium transition-colors ${!hasExported ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'bg-card hover:bg-muted cursor-pointer'}`}>
                                     <Upload className="h-4 w-4" /> 导入数据
-                                    <input type="file" accept=".json" className="hidden" onChange={(e) => handleImportData('users', e)} />
+                                    <input type="file" accept=".json" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('users', e)} />
                                  </label>
                             </div>
                          </div>
