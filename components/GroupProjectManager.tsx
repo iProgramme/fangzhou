@@ -10,6 +10,9 @@ interface GroupProjectManagerProps {
     onAddProject: (data: Partial<Project>) => void;
     onEditProject: (project: Project) => void;
     onDeleteProject: (id: string) => void;
+    selectedYear: number;
+    availableYears: number[];
+    onSelectYear: (year: number) => void;
 }
 
 const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({ 
@@ -18,7 +21,10 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
     dictionaries,
     onAddProject, 
     onEditProject, 
-    onDeleteProject 
+    onDeleteProject,
+    selectedYear,
+    availableYears,
+    onSelectYear
 }) => {
     const [activeTab, setActiveTab] = useState<string>('progress'); // Default to Progress
 
@@ -47,10 +53,10 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
     };
 
     const tabs = [
-        { id: 'progress', label: 'B2025各组项目列表及进度' },
+        { id: 'progress', label: '各组项目列表及进度' },
         { id: 'early', label: '前期项目跟进' },
-        { id: 'collection', label: 'A2025年底收款计划' },
-        { id: 'completed', label: 'C已完成项目' },
+        { id: 'collection', label: '年底收款计划' },
+        { id: 'completed', label: '已完成项目' },
     ];
 
     return (
@@ -88,6 +94,9 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
                 onAddProject={(data) => onAddProject({ ...data, department })} 
                 onEditProject={onEditProject}
                 onDeleteProject={onDeleteProject}
+                selectedYear={selectedYear}
+                availableYears={availableYears}
+                onSelectYear={onSelectYear}
             />
         </div>
     );

@@ -7,9 +7,14 @@ import { Project, ProjectStage } from '../types';
 import { MOCK_PROJECTS } from '../services/mockData';
 import { Wallet, Building2, TrendingUp, Calendar, Filter, FileText } from 'lucide-react';
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+    selectedYear: number;
+    availableYears: number[];
+    onSelectYear: (year: number) => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ selectedYear, availableYears, onSelectYear }) => {
   const [activeTab, setActiveTab] = useState<'financial' | 'early'>('financial');
-  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
 
   const analytics = useMemo(() => {
@@ -17,13 +22,13 @@ const Dashboard: React.FC = () => {
     let filteredProjects = MOCK_PROJECTS.filter(p => {
         // Simple logic: if project has a signing date, check year
         if (p.signingDate) {
-            return p.signingDate.startsWith(selectedYear);
+            return p.signingDate.startsWith(selectedYear.toString());
         }
         // Fallback for mock data without specific dates or cross-year logic
         // In real app, date logic would be stricter.
         // For early stage, check estimated sign year
         if (p.stage === ProjectStage.EARLY && p.estimatedSignYear) {
-            return p.estimatedSignYear === selectedYear;
+            return p.estimatedSignYear === selectedYear.toString();
         }
         return true; 
     });
@@ -113,18 +118,6 @@ const Dashboard: React.FC = () => {
         
         {/* Filters */}
         <div className="flex gap-2 bg-card p-2 rounded-lg border shadow-sm">
-            <div className="flex items-center gap-2 px-2 border-r">
-                <Calendar className="h-4 w-4 text-muted-foreground"/>
-                <select 
-                    value={selectedYear} 
-                    onChange={(e) => setSelectedYear(e.target.value)}
-                    className="bg-transparent text-sm focus:outline-none"
-                >
-                    <option value="2024">2024年</option>
-                    <option value="2025">2025年</option>
-                    <option value="2026">2026年</option>
-                </select>
-            </div>
             <div className="flex items-center gap-2 px-2">
                 <Filter className="h-4 w-4 text-muted-foreground"/>
                  <select 

@@ -19,6 +19,9 @@ interface ProjectTableProps {
   onEditProject?: (project: Project) => void;
   onDeleteProject?: (id: string) => void;
   showAddButton?: boolean;
+  selectedYear: number;
+  availableYears: number[];
+  onSelectYear: (year: number) => void;
 }
 
 const formatMoney = (val: any) => val ? `¥${Number(val).toLocaleString()}` : '-';
@@ -31,7 +34,10 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
     onAddProject, 
     onEditProject,
     onDeleteProject,
-    showAddButton 
+    showAddButton,
+    selectedYear,
+    availableYears,
+    onSelectYear
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
@@ -39,11 +45,6 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   const [visibleColumns, setVisibleColumns] = useState<string[]>(columns.map(c => c.key as string));
   const [showColumnToggle, setShowColumnToggle] = useState(false);
   const columnToggleRef = useRef<HTMLDivElement>(null);
-  
-  // Year Context for Table View
-  const [viewYear, setViewYear] = useState<number>(2025);
-  // Fetch available years from dictionary or default
-  const availableYears = dictionaries?.['系统年份']?.map(d => Number(d.label)) || [2024, 2025, 2026, 2027];
   
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -174,7 +175,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
 
   // Annual Data Helper
   const getAnnualValue = (row: Project, key: 'annualContract' | 'annualCollection') => {
-      const record = row.annualData?.find(d => d.year === viewYear);
+      const record = row.annualData?.find(d => d.year === selectedYear);
       if (key === 'annualContract') return record?.contractAmount;
       if (key === 'annualCollection') return record?.collectedAmount;
       return 0;
@@ -188,7 +189,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   };
 
   const addAnnualRow = () => {
-      setFormAnnualData([...formAnnualData, { year: viewYear, contractAmount: 0, collectedAmount: 0 }]);
+      setFormAnnualData([...formAnnualData, { year: selectedYear, contractAmount: 0, collectedAmount: 0 }]);
   };
 
   const removeAnnualRow = (index: number) => {
@@ -217,20 +218,6 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between">
         <div className="flex items-center gap-4">
             {title && <h2 className="text-2xl font-bold tracking-tight">{title}</h2>}
-            {/* Year Selector for View */}
-            <div className="flex items-center gap-2 bg-muted/50 px-2 py-1 rounded border">
-                <Calendar className="h-4 w-4 text-primary" />
-                <span className="text-xs font-medium">查看年份:</span>
-                <select 
-                    value={viewYear} 
-                    onChange={(e) => setViewYear(Number(e.target.value))}
-                    className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
-                >
-                    {availableYears.map(year => (
-                        <option key={year} value={year}>{year}</option>
-                    ))}
-                </select>
-            </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
@@ -348,8 +335,8 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                     if (col.key !== 'actions' && !visibleColumns.includes(col.key as string)) return null;
                     
                     let header = col.header;
-                    if (col.key === 'annualContract') header = `${viewYear} 合同额`;
-                    if (col.key === 'annualCollection') header = `${viewYear} 收款`;
+                    if (col.key === 'annualContract') header = `${selectedYear} 合同额`;
+                    if (col.key === 'annualCollection') header = `${selectedYear} 收款`;
 
                     // Logic to check if filtering is enabled for this column
                     const isFilterable = col.inputType === 'select' && col.dictKey && dictionaries?.[col.dictKey];
@@ -608,10 +595,10 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                            let valueContent;
                            
                            if (col.key === 'annualContract') {
-                               header = `${viewYear} 合同额`;
+                               header = `${selectedYear} 合同额`;
                                valueContent = formatMoney(getAnnualValue(viewProject, 'annualContract'));
                            } else if (col.key === 'annualCollection') {
-                               header = `${viewYear} 收款`;
+                               header = `${selectedYear} 收款`;
                                valueContent = formatMoney(getAnnualValue(viewProject, 'annualCollection'));
                            } else if (col.dictKey) {
                                const val = viewProject[col.key as keyof Project] as string;

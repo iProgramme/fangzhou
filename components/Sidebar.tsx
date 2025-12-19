@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Settings, ChevronDown, ChevronRight, X, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, ChevronDown, ChevronRight, X, Briefcase, LogOut } from 'lucide-react';
+import { User, Department, DEPARTMENT_SLUGS } from '../types'; // Import User, Department and DEPARTMENT_SLUGS
 
 interface SidebarProps {
   currentPath: string;
   onNavigate: (path: string) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  currentUser: User | null;
+  onLogout: () => void;
 }
 
 type MenuItem = {
@@ -15,7 +18,7 @@ type MenuItem = {
   children?: { name: string; path: string; icon?: React.ElementType }[];
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setIsOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setIsOpen, currentUser, onLogout }) => {
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     '项目周期': true,
     '各项目组': true
@@ -55,6 +58,40 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
     { name: '系统设置', icon: Settings, path: '/settings' },
   ];
 
+  const filteredMenuStructure = menuStructure.filter(item => {
+    // 1. Dashboard is visible to everyone
+    if (item.path === '/') return true;
+
+    // 2. Project Cycle is visible to everyone
+    if (item.name === '项目周期') return true;
+
+    // 3. System Settings only for admin
+    if (item.path === '/settings') {
+      return currentUser?.role === 'admin';
+    }
+
+    // 4. Group filtering
+    if (item.name === '各项目组') {
+      if (currentUser?.role === 'admin') return true;
+      
+      // Filter children for non-admins
+      if (item.children) {
+        const filteredChildren = item.children.filter(child => {
+          const dept = DEPARTMENT_SLUGS[child.path.split('/groups/')[1]];
+          return currentUser?.department === dept;
+        });
+        
+        if (filteredChildren.length > 0) {
+          item.children = filteredChildren;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    return true;
+  });
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -79,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
         </div>
 
         <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
-          {menuStructure.map((item) => {
+          {filteredMenuStructure.map((item) => {
             if (item.children) {
               const isExpanded = expandedMenus[item.name];
               const isActiveParent = item.children.some(child => child.path === currentPath);
@@ -147,14 +184,25 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
         </nav>
       
         <div className="p-4 border-t border-border shrink-0">
-          <div className="flex items-center gap-3">
-             <div className="h-8 w-8 rounded-full bg-accent/20 flex items-center justify-center text-accent-foreground font-bold text-xs">
-               管理
-             </div>
-             <div className="flex flex-col">
-               <span className="text-sm font-medium">管理员用户</span>
-               <span className="text-xs text-muted-foreground">系统管理员</span>
-             </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+               <div className="h-8 w-8 rounded-full bg-accent/20 flex items-center justify-center text-accent-foreground font-bold text-xs">
+                 {currentUser?.name?.charAt(0) || 'U'}
+               </div>
+               <div className="flex flex-col">
+                 <span className="text-sm font-medium">{currentUser?.name || '未知用户'}</span>
+                 <span className="text-xs text-muted-foreground">
+                    {currentUser?.role === 'admin' ? '管理员' : currentUser?.role === 'manager' ? '经理' : '普通用户'}
+                 </span>
+               </div>
+            </div>
+            <button 
+              onClick={onLogout}
+              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+              title="退出登录"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>

@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, Calendar } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import ProjectTable from './components/ProjectTable';
 import GroupProjectManager from './components/GroupProjectManager';
 import Settings from './components/Settings';
 import Watermark from './components/Watermark';
+import Login from './components/Login'; // Import Login component
 import { CURRENT_USER } from './services/mockData';
 import { fetchProjects, createProject, updateProject, deleteProject, fetchUsers, fetchDictionaries, updateDictionary, fetchLogs } from './services/api';
 import { EARLY_COLUMNS, COLLECTION_COLUMNS, PROGRESS_COLUMNS, COMPLETED_COLUMNS } from './constants';
-import { ProjectStage, DEPARTMENT_SLUGS, Project, OperationLog, User, DictItem } from './types';
+import { ProjectStage, DEPARTMENT_SLUGS, Project, OperationLog, User, DictItem } from './types'; // Import User type
 
 const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,6 +25,56 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<OperationLog[]>([]);
   const [dictionaries, setDictionaries] = useState<any>({});
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear()); // Global year state
+
+  // Authentication State
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    // Check localStorage for a token or user info
+    return localStorage.getItem('isLoggedIn') === 'true';
+  });
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const storedUser = localStorage.getItem('currentUser');
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
+
+  // Derive availableYears from dictionaries
+  const availableYears = React.useMemo(() => {
+    return dictionaries?.['系统年份']?.map((d: DictItem) => Number(d.label)) || [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1, new Date().getFullYear() + 2];
+  }, [dictionaries]);
+
+  // Function to handle login
+  const handleLogin = (username: string, department?: string, role?: string) => {
+    // In a real app, you'd fetch user details from an API after successful auth
+    // For now, construct a mock user object based on Login.tsx logic
+    const mockUser: User = {
+      id: username, // Using username as ID for mock
+      name: username === 'admin' ? '管理员' : username,
+      role: (role || 'user') as 'admin' | 'user' | 'manager',
+      department: department as any, // Cast to Department type if needed
+      status: 'active',
+    };
+
+    setIsLoggedIn(true);
+    setCurrentUser(mockUser);
+    localStorage.setItem('isLoggedIn', 'true');
+    localStorage.setItem('currentUser', JSON.stringify(mockUser));
+    // Redirect to home or previous path after login if needed
+    if (currentPath === '/login' || currentPath === '/') { // If on login page or root, navigate to dashboard
+      setCurrentPath('/'); 
+      window.location.hash = '/';
+    }
+  };
+
+  // Function to handle logout
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('currentUser');
+    // Redirect to login page
+    setCurrentPath('/login');
+    window.location.hash = '/login';
+  };
 
   // Data Fetching based on Route
   useEffect(() => {
@@ -87,7 +138,7 @@ const App: React.FC = () => {
     };
     
     loadData();
-  }, [currentPath]);
+  }, [currentPath, dictionaries]); // Added dictionaries to dependency array for availableYears
 
   // Helper to refresh logs
   const refreshLogs = async () => {
@@ -179,6 +230,9 @@ const App: React.FC = () => {
                     onAddProject={handleAddProject}
                     onEditProject={handleUpdateProject}
                     onDeleteProject={handleDeleteProject}
+                    selectedYear={selectedYear}
+                    availableYears={availableYears}
+                    onSelectYear={setSelectedYear}
                 />
             );
         }
@@ -186,7 +240,11 @@ const App: React.FC = () => {
 
     switch (currentPath) {
       case '/':
-        return <Dashboard />; 
+        return <Dashboard 
+                  selectedYear={selectedYear} 
+                  availableYears={availableYears} 
+                  onSelectYear={setSelectedYear} 
+                />; 
       
       case '/cycle/early':
         return (
@@ -195,41 +253,57 @@ const App: React.FC = () => {
             data={projects.filter(p => p.stage === ProjectStage.EARLY)}
             columns={EARLY_COLUMNS as any}
             dictionaries={dictionaries}
+            onAddProject={handleAddProject}
             onEditProject={handleUpdateProject}
             onDeleteProject={handleDeleteProject}
+            selectedYear={selectedYear} 
+            availableYears={availableYears} 
+            onSelectYear={setSelectedYear} 
           />
         );
       case '/cycle/collection':
         return (
           <ProjectTable 
-            title="A2025年底收款计划" 
+            title="年度收款计划" // Removed "A2025"
             data={projects.filter(p => p.stage === ProjectStage.COLLECTION)}
             columns={COLLECTION_COLUMNS as any}
             dictionaries={dictionaries}
+            onAddProject={handleAddProject}
             onEditProject={handleUpdateProject}
             onDeleteProject={handleDeleteProject}
+            selectedYear={selectedYear} 
+            availableYears={availableYears} 
+            onSelectYear={setSelectedYear} 
           />
         );
       case '/cycle/progress':
         return (
           <ProjectTable 
-            title="B2025各组项目列表及进度" 
+            title="各组项目列表及进度" // Removed "B2025"
             data={projects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)}
             columns={PROGRESS_COLUMNS as any}
             dictionaries={dictionaries}
+            onAddProject={handleAddProject}
             onEditProject={handleUpdateProject}
             onDeleteProject={handleDeleteProject}
+            selectedYear={selectedYear} 
+            availableYears={availableYears} 
+            onSelectYear={setSelectedYear} 
           />
         );
       case '/cycle/completed':
         return (
           <ProjectTable 
-            title="C已完成项目" 
+            title="已完成项目" 
             data={projects.filter(p => p.stage === ProjectStage.COMPLETED)}
             columns={COMPLETED_COLUMNS as any}
             dictionaries={dictionaries}
+            onAddProject={handleAddProject}
             onEditProject={handleUpdateProject}
             onDeleteProject={handleDeleteProject}
+            selectedYear={selectedYear} 
+            availableYears={availableYears} 
+            onSelectYear={setSelectedYear} 
           />
         );
 
@@ -244,35 +318,87 @@ const App: React.FC = () => {
             />
         );
       default:
-        return <Dashboard />;
+        return <Dashboard 
+                  selectedYear={selectedYear} 
+                  availableYears={availableYears} 
+                  onSelectYear={setSelectedYear} 
+                />;
     }
   };
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <Watermark userName={CURRENT_USER.name} />
-      
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar 
-            currentPath={currentPath} 
-            onNavigate={handleNavigate} 
-            isOpen={sidebarOpen}
-            setIsOpen={setSidebarOpen}
-        />
+      {!isLoggedIn ? (
+        <Login onLogin={handleLogin} />
+      ) : (
+        <>
+          <Watermark userName={currentUser?.name || CURRENT_USER.name} />
+          
+          <div className="flex h-screen overflow-hidden">
+            <Sidebar 
+                currentPath={currentPath} 
+                onNavigate={handleNavigate} 
+                isOpen={sidebarOpen}
+                setIsOpen={setSidebarOpen}
+                currentUser={currentUser} // Pass currentUser to Sidebar for conditional rendering
+                onLogout={handleLogout} // Pass logout handler
+            />
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-            <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
-                <button onClick={() => setSidebarOpen(true)}>
-                    <Menu className="h-6 w-6" />
-                </button>
-                <span className="font-semibold">项目管理系统</span>
-            </header>
+            <div className="flex flex-1 flex-col overflow-hidden">
+                <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
+                    <button onClick={() => setSidebarOpen(true)}>
+                        <Menu className="h-6 w-6" />
+                    </button>
+                    <span className="font-semibold">项目管理系统</span>
+                </header>
 
-            <main className="flex-1 overflow-y-auto p-6 md:p-12">
-                {renderContent()}
-            </main>
-        </div>
-      </div>
+                <main className="flex-1 overflow-y-auto p-6 md:p-12">
+                    {/* Global Year Selector - Moved to the very top */}
+                    {isLoggedIn && currentPath !== '/settings' && currentPath !== '/login' && (
+                        <div className="flex items-center justify-between mb-8 border-b pb-4">
+                            <div>
+                                <h2 className="text-xl font-semibold">
+                                    {currentPath === '/' ? '数据总览' : 
+                                     currentPath.startsWith('/groups/') ? '项目组管理' : '项目周期'}
+                                </h2>
+                                <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
+                            </div>
+                            <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+                                <Calendar className="h-4 w-4 text-primary" />
+                                <span className="text-sm font-medium">切换年份:</span>
+                                <select 
+                                    value={selectedYear} 
+                                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                    className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+                                >
+                                    {availableYears.map(year => (
+                                        <option key={year} value={year}>{year}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+                    {(() => {
+                        // Access Control Logic
+                        if (currentPath === '/settings' && currentUser?.role !== 'admin') {
+                            return <div className="p-10 text-center text-red-500">您没有权限访问此页面</div>;
+                        }
+                        
+                        if (currentPath.startsWith('/groups/')) {
+                            const slug = currentPath.split('/groups/')[1];
+                            const department = DEPARTMENT_SLUGS[slug];
+                            if (currentUser?.role !== 'admin' && currentUser?.department !== department) {
+                                return <div className="p-10 text-center text-red-500">您没有权限访问其他部门的项目</div>;
+                            }
+                        }
+
+                        return renderContent();
+                    })()}
+                </main>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
