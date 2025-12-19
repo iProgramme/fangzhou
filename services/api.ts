@@ -5,9 +5,14 @@ import { INITIAL_DICTIONARIES, MOCK_USERS, MOCK_PROJECTS, INITIAL_LOGS } from '.
 const API_BASE = 'http://localhost:3001/api';
 
 // --- Projects ---
-export const fetchProjects = async (): Promise<Project[]> => {
+export const fetchProjects = async (filters: { stage?: string; department?: string } = {}): Promise<Project[]> => {
     try {
-        const res = await fetch(`${API_BASE}/projects`);
+        const params = new URLSearchParams();
+        if (filters.stage) params.append('stage', filters.stage);
+        if (filters.department) params.append('department', filters.department);
+
+        const url = `${API_BASE}/projects?${params.toString()}`;
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch projects');
         const data = await res.json();
         

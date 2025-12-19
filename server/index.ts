@@ -4,7 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { db } from '../db';
 import { projects, users, operationLogs, systemDictionaries } from '../db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 dotenv.config({ path: '.env.local' });
@@ -15,14 +15,50 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// --- 映射定义 (英文参数 -> 数据库中文值) ---
+const STAGE_MAPPING: Record<string, string> = {
+  'early': '前期项目跟进',
+  'collection': '年度收款计划',
+  'progress': '各组项目列表及进度',
+  'completed': '已完成项目'
+};
+
+const DEPT_MAPPING: Record<string, string> = {
+  'comprehensive': '综合组（汤、黄）',
+  'municipal': '市政组（大汤）',
+  'traffic': '交通组（任）',
+  'planning-1': '规划一组（邝）',
+  'planning-2': '规划二组（润新）',
+  'planning-3': '规划三组（胡）',
+  'planning-4': '规划四组（秀明）',
+  'design': '前期和城市设计组（林）',
+  'renewal': '城市更新组（利）'
+};
+
 // --- 路由定义 ---
 
 // 1. 项目 (Projects)
 // 获取所有项目
 app.get('/api/projects', async (req, res) => {
   try {
+    let { stage, department } = req.query;
+    const conditions = [];
+    
+    // 映射英文参数到中文值
+    if (stage && typeof stage === 'string' && STAGE_MAPPING[stage]) {
+        stage = STAGE_MAPPING[stage];
+    }
+    
+    if (department && typeof department === 'string' && DEPT_MAPPING[department]) {
+        department = DEPT_MAPPING[department];
+    }
+    
+    if (stage) conditions.push(eq(projects.stage, stage as string));
+    if (department) conditions.push(eq(projects.department, department as string));
+
     const allProjects = await db.query.projects.findMany({
-        orderBy: [desc(projects.updatedAt)]
+        orderBy: [desc(projects.updatedAt)],
+        where: conditions.length > 0 ? and(...conditions) : undefined
     });
     res.json(allProjects);
   } catch (error) {

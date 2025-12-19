@@ -25,28 +25,69 @@ const App: React.FC = () => {
   const [dictionaries, setDictionaries] = useState<any>({});
   const [loading, setLoading] = useState(true);
 
-  // Initial Fetch
+  // Data Fetching based on Route
   useEffect(() => {
-    const initData = async () => {
-        try {
-            const [p, u, d, l] = await Promise.all([
-                fetchProjects(),
-                fetchUsers(),
-                fetchDictionaries(),
-                fetchLogs()
-            ]);
-            setProjects(p);
-            setUsers(u);
-            setDictionaries(d);
-            setLogs(l);
-        } catch (error) {
-            console.error('Init failed', error);
-        } finally {
-            setLoading(false);
-        }
+    const loadData = async () => {
+      // Dictionaries are needed for almost all pages, fetch if missing
+      if (Object.keys(dictionaries).length === 0) {
+          try {
+             const d = await fetchDictionaries();
+             setDictionaries(d);
+          } catch(e) { console.error('Failed to load dictionaries', e); }
+      }
+
+      // Route-specific fetching
+      if (currentPath === '/settings') {
+          // Settings needs Users and Logs
+          setLoading(true);
+          try {
+              const [u, l] = await Promise.all([
+                  fetchUsers(),
+                  fetchLogs()
+              ]);
+              setUsers(u);
+              setLogs(l);
+          } catch (e) {
+              console.error('Failed to load settings data', e);
+          } finally {
+              setLoading(false);
+          }
+      } else {
+          // Check for project routes
+          let filters: any = null;
+          
+          if (currentPath === '/cycle/early') {
+              filters = { stage: 'early' };
+          } else if (currentPath === '/cycle/collection') {
+              filters = { stage: 'collection' };
+          } else if (currentPath === '/cycle/progress') {
+              filters = { stage: 'progress' };
+          } else if (currentPath === '/cycle/completed') {
+              filters = { stage: 'completed' };
+          } else if (currentPath.startsWith('/groups/')) {
+              const slug = currentPath.split('/groups/')[1];
+              if (slug) filters = { department: slug };
+          }
+
+          if (filters) {
+              setLoading(true);
+              try {
+                  const p = await fetchProjects(filters);
+                  setProjects(p);
+              } catch (e) {
+                  console.error('Failed to load projects', e);
+              } finally {
+                  setLoading(false);
+              }
+          } else {
+             // Dashboard or unknown route
+             setLoading(false);
+          }
+      }
     };
-    initData();
-  }, []);
+    
+    loadData();
+  }, [currentPath]);
 
   // Helper to refresh logs
   const refreshLogs = async () => {
