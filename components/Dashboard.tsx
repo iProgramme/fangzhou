@@ -1,10 +1,10 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, ComposedChart, Area
 } from 'recharts';
 import { Project, ProjectStage, AnnualData } from '../types';
-import { Wallet, TrendingUp, FileText, Target, PieChart as PieIcon, BarChart3, Building, Calendar, Filter, X, CheckSquare, Square, Maximize2 } from 'lucide-react';
+import { Wallet, TrendingUp, FileText, Target, PieChart as PieIcon, BarChart3, Building, Calendar, Filter, X, CheckSquare, Square, Maximize2, ChevronRight } from 'lucide-react';
 
 interface DashboardProps {
     selectedYear: number;
@@ -19,13 +19,24 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   const [openFilterKey, setOpenFilterKey] = useState<string | null>(null);
   const [zoomedChart, setZoomedChart] = useState<{key: string, title: string} | null>(null);
   
+  // 1. Chart Dimensions State (Persistence)
+  const [chartSizes, setChartSizes] = useState<Record<string, { w: string, h: number }>>(() => {
+      const saved = localStorage.getItem('dashboard_v6_sizes');
+      return saved ? JSON.parse(saved) : {};
+  });
+
+  // 2. Filter States
   const [localFilters, setLocalFilters] = useState<Record<string, Record<string, string[]>>>(() => {
-      const saved = localStorage.getItem('dashboard_v5_filters');
+      const saved = localStorage.getItem('dashboard_v6_filters');
       return saved ? JSON.parse(saved) : { contractSource: {}, collectionSource: {}, contractType: {}, collectionType: {}, regional: {}, earlySource: {}, earlyProbability: {}, earlyYear: {}, earlyType: {} };
   });
 
   useEffect(() => {
-      localStorage.setItem('dashboard_v5_filters', JSON.stringify(localFilters));
+      localStorage.setItem('dashboard_v6_sizes', JSON.stringify(chartSizes));
+  }, [chartSizes]);
+
+  useEffect(() => {
+      localStorage.setItem('dashboard_v6_filters', JSON.stringify(localFilters));
   }, [localFilters]);
 
   const toggleFilterValue = (chartKey: string, field: string, val: string) => {
@@ -34,6 +45,19 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
           const next = current.includes(val) ? current.filter(v => v !== val) : [...current, val];
           return { ...prev, [chartKey]: { ...prev[chartKey], [field]: next } };
       });
+  };
+
+  const onResize = (key: string, width: string, height: number) => {
+      setChartSizes(prev => ({ ...prev, [key]: { w: width, h: height } }));
+  };
+
+  // Helper: Process Pie Data (Merge smaller slices into 'Others')
+  const processPieData = (data: {name: string, value: number}[]) => {
+      if (data.length <= 7) return data;
+      const sorted = [...data].sort((a, b) => b.value - a.value);
+      const top = sorted.slice(0, 6);
+      const others = sorted.slice(6).reduce((acc, curr) => acc + curr.value, 0);
+      return [...top, { name: '其他', value: others }];
   };
 
   const analytics = useMemo(() => {
@@ -84,18 +108,18 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         contractTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.8,
         collectionTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.6,
         
-        contractSource: aggregate(applyMultiFilter(projectsActive, localFilters.contractSource), 'source', p => getYearlyValue(p, 'contractAmount')),
-        collectionSource: aggregate(applyMultiFilter(projectsActive, localFilters.collectionSource), 'source', p => getYearlyValue(p, 'collectedAmount')),
+        contractSource: processPieData(aggregate(applyMultiFilter(projectsActive, localFilters.contractSource), 'source', p => getYearlyValue(p, 'contractAmount'))),
+        collectionSource: processPieData(aggregate(applyMultiFilter(projectsActive, localFilters.collectionSource), 'source', p => getYearlyValue(p, 'collectedAmount'))),
         contractType: aggregate(applyMultiFilter(projectsActive, localFilters.contractType), 'category', p => getYearlyValue(p, 'contractAmount')),
         collectionType: aggregate(applyMultiFilter(projectsActive, localFilters.collectionType), 'category', p => getYearlyValue(p, 'collectedAmount')),
         regional: aggregate(applyMultiFilter(projectsActive, localFilters.regional), 'region', p => getYearlyValue(p, 'contractAmount')),
         regionalColl: aggregate(applyMultiFilter(projectsActive, localFilters.regional), 'region', p => getYearlyValue(p, 'collectedAmount')),
 
         earlyTotal: earlyProjects.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
-        earlySource: aggregate(applyMultiFilter(earlyProjects, localFilters.earlySource), 'source', p => 1),
+        earlySource: processPieData(aggregate(applyMultiFilter(earlyProjects, localFilters.earlySource), 'source', p => 1)),
         earlyProb: aggregate(applyMultiFilter(earlyProjects, localFilters.earlyProbability), 'probability', p => 1),
         earlyYear: aggregate(applyMultiFilter(earlyProjects, localFilters.earlyYear), 'estimatedSignYear', p => p.totalAmount || 0),
-        earlyType: aggregate(applyMultiFilter(earlyProjects, localFilters.earlyType), 'category', p => 1)
+        earlyType: processPieData(aggregate(applyMultiFilter(earlyProjects, localFilters.earlyType), 'category', p => 1))
     };
   }, [selectedYear, selectedQuarter, projects, localFilters]);
 
@@ -108,9 +132,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   const formatWan = (val: number) => `¥${(val / 10000).toFixed(0)}w`;
   const fieldLabels: Record<string, string> = { department: '部门', region: '地区', source: '来源', category: '类别', threeReviewType: '三审', probability: '可能性' };
 
-  // Helper to render specific charts
-  const renderChartContent = (key: string, isZoomed = false) => {
-      const h = isZoomed ? 500 : 220;
+  const renderChartContent = (key: string, height: number, isZoomed = false) => {
+      const h = isZoomed ? 500 : (height - 80); // Substract header height
       switch(key) {
           case 'contractSource': case 'collectionSource':
               return (
@@ -153,12 +176,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10 max-w-[1800px] mx-auto">
-      <div className="flex items-center justify-between px-2">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-10 max-w-[1800px] mx-auto px-4">
+      <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BarChart3 className="text-primary h-7 w-7" />
-            <h1 className="text-xl font-black tracking-tight text-gray-800">经营看板</h1>
-            <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">{activeTab === 'financial' ? 'Financial' : 'Pipeline'}</span>
+            <h1 className="text-xl font-black tracking-tight text-gray-800">经营动态大屏</h1>
           </div>
           <div className="flex p-1 bg-muted rounded-xl border text-[12px] font-bold shadow-sm">
               <button onClick={() => setActiveTab('financial')} className={`px-5 py-1.5 rounded-lg transition-all ${activeTab === 'financial' ? 'bg-background shadow text-primary' : 'text-muted-foreground'}`}>财务经营</button>
@@ -166,20 +188,19 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
           </div>
       </div>
 
-      {activeTab === 'financial' && (
-        <div className="space-y-6">
-            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-                <CompactKPICard title="年度合同总额" value={analytics.totalContract} target={analytics.contractTarget} color="indigo" />
-                <CompactKPICard title="年度收款总额" value={analytics.totalCollected} target={analytics.collectionTarget} color="emerald" />
-                <div className="col-span-2 rounded-xl border bg-card p-4 flex items-center gap-6 shadow-sm border-b-4 border-b-primary/30">
-                    <div className="flex-1">
-                        <div className="flex justify-between text-[10px] font-black uppercase text-gray-400 mb-1"><span>回款目标进度</span><span className="text-primary">{((analytics.totalCollected / (analytics.collectionTarget || 1)) * 100).toFixed(1)}%</span></div>
-                        <div className="h-2.5 bg-muted rounded-full overflow-hidden border"><div className="h-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-1000" style={{ width: `${Math.min(100, (analytics.totalCollected / (analytics.collectionTarget || 1) * 100))}%` }}></div></div>
+      <div className="flex flex-wrap gap-4">
+          {activeTab === 'financial' ? (
+            <>
+                <div className="w-full grid gap-4 grid-cols-2 lg:grid-cols-4">
+                    <CompactKPICard title="年度合同" value={analytics.totalContract} target={analytics.contractTarget} color="indigo" />
+                    <CompactKPICard title="年度收款" value={analytics.totalCollected} target={analytics.collectionTarget} color="emerald" />
+                    <div className="col-span-2 rounded-xl border bg-card p-4 flex items-center gap-6 shadow-sm border-b-4 border-b-primary/30">
+                        <div className="flex-1">
+                            <div className="flex justify-between text-[10px] font-black uppercase text-gray-400 mb-1"><span>回款目标进度</span><span className="text-primary">{((analytics.totalCollected / (analytics.collectionTarget || 1)) * 100).toFixed(1)}%</span></div>
+                            <div className="h-2.5 bg-muted rounded-full overflow-hidden border"><div className="h-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-1000" style={{ width: `${Math.min(100, (analytics.totalCollected / (analytics.collectionTarget || 1) * 100))}%` }}></div></div>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-3">
                 {[
                     {k: 'contractSource', t: '合同来源分布', f: ['department', 'region']},
                     {k: 'collectionSource', t: '收款来源分布', f: ['department', 'region']},
@@ -187,54 +208,71 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                     {k: 'collectionType', t: '收款类别排行', f: ['department', 'region']},
                     {k: 'regional', t: '地区业务对比', f: ['department', 'category']},
                 ].map(c => (
-                    <ChartCard key={c.k} title={c.t} icon={<PieIcon className="h-3.5 w-3.5"/>} fields={c.f} filters={localFilters[c.k]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(c.k,f,v)} isOpen={openFilterKey===c.k} onOpen={()=>setOpenFilterKey(openFilterKey===c.k?null:c.k)} onZoom={()=>setZoomedChart({key: c.k, title: c.t})}>
-                        {renderChartContent(c.k)}
+                    <ChartCard 
+                        key={c.k} 
+                        title={c.t} 
+                        id={c.k}
+                        icon={<PieIcon className="h-3.5 w-3.5"/>} 
+                        fields={c.f} 
+                        filters={localFilters[c.k]} 
+                        options={options} 
+                        labels={fieldLabels} 
+                        onToggle={(f:string,v:string)=>toggleFilterValue(c.k,f,v)} 
+                        isOpen={openFilterKey===c.k} 
+                        onOpen={()=>setOpenFilterKey(openFilterKey===c.k?null:c.k)} 
+                        onZoom={()=>setZoomedChart({key: c.k, title: c.t})}
+                        size={chartSizes[c.k]}
+                        onResize={(w:string, h:number) => onResize(c.k, w, h)}
+                    >
+                        {renderChartContent(c.k, chartSizes[c.k]?.h || 300)}
                     </ChartCard>
                 ))}
-            </div>
-        </div>
-      )}
-
-      {activeTab === 'early' && (
-        <div className="space-y-6">
-            <div className="rounded-xl border bg-card p-5 shadow-sm bg-gradient-to-r from-primary/5 to-transparent flex items-center justify-between border-l-4 border-l-primary">
-                <div className="flex items-center gap-4">
-                    <div className="p-2.5 bg-primary/10 rounded-lg text-primary shadow-inner"><TrendingUp className="h-5 w-5"/></div>
-                    <div><p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">前期预估总额</p><h2 className="text-2xl font-black text-primary tracking-tighter">{formatWan(analytics.earlyTotal)}</h2></div>
+            </>
+          ) : (
+            <>
+                <div className="w-full rounded-xl border bg-card p-5 shadow-sm bg-gradient-to-r from-primary/5 to-transparent flex items-center justify-between border-l-4 border-l-primary">
+                    <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-primary/10 rounded-lg text-primary shadow-inner"><TrendingUp className="h-5 w-5"/></div>
+                        <div><p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">前期预估总额</p><h2 className="text-2xl font-black text-primary tracking-tighter">{formatWan(analytics.earlyTotal)}</h2></div>
+                    </div>
                 </div>
-            </div>
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-3">
                 {[
                     {k: 'earlySource', t: '前期来源分析', f: ['region', 'department']},
                     {k: 'earlyProbability', t: '项目可能性分布', f: ['source', 'department']},
                     {k: 'earlyYear', t: '签约年份预估', f: ['department', 'region']},
                     {k: 'earlyType', t: '前期类型分布', f: ['department', 'region']},
                 ].map(c => (
-                    <ChartCard key={c.k} title={c.t} icon={<Calendar className="h-3.5 w-3.5"/>} fields={c.f} filters={localFilters[c.k]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(c.k,f,v)} isOpen={openFilterKey===c.k} onOpen={()=>setOpenFilterKey(openFilterKey===c.k?null:c.k)} onZoom={()=>setZoomedChart({key: c.k, title: c.t})}>
-                        {renderChartContent(c.k)}
+                    <ChartCard 
+                        key={c.k} 
+                        title={c.t} 
+                        id={c.k}
+                        icon={<Calendar className="h-3.5 w-3.5"/>} 
+                        fields={c.f} 
+                        filters={localFilters[c.k]} 
+                        options={options} 
+                        labels={fieldLabels} 
+                        onToggle={(f:string,v:string)=>toggleFilterValue(c.k,f,v)} 
+                        isOpen={openFilterKey===c.k} 
+                        onOpen={()=>setOpenFilterKey(openFilterKey===c.k?null:c.k)} 
+                        onZoom={()=>setZoomedChart({key: c.k, title: c.t})}
+                        size={chartSizes[c.k]}
+                        onResize={(w:string, h:number) => onResize(c.k, w, h)}
+                    >
+                        {renderChartContent(c.k, chartSizes[c.k]?.h || 300)}
                     </ChartCard>
                 ))}
-            </div>
-        </div>
-      )}
+            </>
+          )}
+      </div>
 
-      {/* Zoom Modal */}
       {zoomedChart && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-xl p-8 animate-in fade-in duration-300">
               <div className="bg-background w-full max-w-5xl rounded-3xl shadow-2xl border flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                   <div className="p-6 border-b flex justify-between items-center bg-muted/30">
-                      <div className="flex items-center gap-3">
-                          <BarChart3 className="text-primary h-6 w-6" />
-                          <h3 className="text-xl font-black tracking-tight">{zoomedChart.title} - 深度查看</h3>
-                      </div>
+                      <div className="flex items-center gap-3"><BarChart3 className="text-primary h-6 w-6" /><h3 className="text-xl font-black tracking-tight">{zoomedChart.title} - 深度查看</h3></div>
                       <button onClick={() => setZoomedChart(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X className="h-6 w-6 text-gray-400"/></button>
                   </div>
-                  <div className="p-10 flex-1 flex items-center justify-center bg-white">
-                      {renderChartContent(zoomedChart.key, true)}
-                  </div>
-                  <div className="p-4 bg-muted/20 border-t text-center">
-                      <p className="text-xs text-muted-foreground font-medium">提示：全屏模式下展示详细标签和更精准的比例。点击右上角关闭返回看板。</p>
-                  </div>
+                  <div className="p-10 flex-1 flex items-center justify-center bg-white">{renderChartContent(zoomedChart.key, 600, true)}</div>
               </div>
           </div>
       )}
@@ -244,7 +282,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
 
 const CompactKPICard = ({ title, value, target, color }: any) => (
     <div className={`rounded-xl border bg-card p-4 shadow-sm hover:shadow-md transition-all border-t-4 ${color === 'indigo' ? 'border-t-indigo-500' : 'border-t-emerald-500'}`}>
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
+        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">{title}</p>
         <h3 className={`text-xl font-black ${color === 'indigo' ? 'text-indigo-700' : 'text-emerald-700'} tracking-tight`}>¥{(value / 10000).toFixed(0)}w</h3>
         <div className="flex justify-between items-center mt-3 pt-2 border-t border-dashed">
             <span className="text-[9px] text-gray-400 font-medium">目标: {(target / 10000).toFixed(0)}w</span>
@@ -253,49 +291,86 @@ const CompactKPICard = ({ title, value, target, color }: any) => (
     </div>
 );
 
-const ChartCard = ({ title, icon, children, fields, filters, options, labels, onToggle, isOpen, onOpen, onZoom }: any) => {
+const ChartCard = ({ title, icon, children, fields, filters, options, labels, onToggle, isOpen, onOpen, onZoom, size, onResize, id }: any) => {
     const activeCount = Object.values(filters).flat().length;
+    const cardRef = useRef<HTMLDivElement>(null);
+    const [isResizing, setIsResizing] = useState(false);
+
+    // Initial sizes
+    const widthClass = size?.w || 'calc(33.333% - 11px)';
+    const height = size?.h || 300;
+
+    const startResize = (e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+        const startX = e.pageX;
+        const startY = e.pageY;
+        const startWidth = cardRef.current?.offsetWidth || 0;
+        const startHeight = cardRef.current?.offsetHeight || 0;
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const newWidth = startWidth + (moveEvent.pageX - startX);
+            const newHeight = startHeight + (moveEvent.pageY - startY);
+            onResize(`${newWidth}px`, newHeight);
+        };
+
+        const onMouseUp = () => {
+            setIsResizing(false);
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
     return (
-        <div className="rounded-xl border bg-card shadow-sm flex flex-col relative group hover:ring-1 ring-primary/20 transition-all">
-            <div className="p-3 pb-2 flex items-center justify-between border-b bg-muted/5">
+        <div 
+            className="rounded-xl border bg-card shadow-sm flex flex-col relative group transition-all"
+            ref={cardRef}
+            style={{ width: widthClass, height: height, minWidth: '300px', minHeight: '250px' }}
+        >
+            <div className="p-3 pb-2 flex items-center justify-between border-b bg-muted/5 shrink-0">
                 <div className="flex items-center gap-2">
                     <div className="p-1 bg-primary/10 rounded text-primary">{icon}</div>
                     <h3 className="font-bold text-[13px] tracking-tight text-gray-700">{title}</h3>
                 </div>
                 <div className="flex items-center gap-1">
-                    <button onClick={onZoom} className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-primary transition-colors" title="放大查看"><Maximize2 className="h-3.5 w-3.5"/></button>
-                    <button onClick={onOpen} className={`p-1.5 rounded-md border transition-all ${activeCount > 0 ? 'bg-primary text-white border-primary' : 'bg-white text-gray-400 border-gray-200 hover:border-primary hover:text-primary'}`}>
-                        <Filter className="h-3.5 w-3.5" />
-                    </button>
+                    <button onClick={onZoom} className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-primary transition-colors"><Maximize2 className="h-3.5 w-3.5"/></button>
+                    <button onClick={onOpen} className={`p-1.5 rounded-md border transition-all ${activeCount > 0 ? 'bg-primary text-white border-primary' : 'bg-white text-gray-400 border-gray-200 hover:border-primary'}`}><Filter className="h-3.5 w-3.5" /></button>
                 </div>
             </div>
+
             {isOpen && (
-                <div className="absolute top-12 right-2 left-2 z-[50] bg-white border rounded-xl shadow-2xl p-4 space-y-4 animate-in zoom-in-95 duration-200 ring-1 ring-black/5">
-                    <div className="flex justify-between items-center border-b pb-2">
-                        <span className="text-[10px] font-black text-primary uppercase tracking-widest">高级过滤</span>
-                        <button onClick={onOpen}><X className="h-3.5 w-3.5 text-gray-400"/></button>
-                    </div>
+                <div className="absolute top-12 right-2 left-2 z-[50] bg-white border rounded-xl shadow-2xl p-4 space-y-4 animate-in zoom-in-95 ring-1 ring-black/5">
+                    <div className="flex justify-between items-center border-b pb-2"><span className="text-[10px] font-black text-primary uppercase">高级过滤</span><button onClick={onOpen}><X className="h-3.5 w-3.5 text-gray-400"/></button></div>
                     <div className="max-h-[300px] overflow-y-auto space-y-4 pr-1 custom-scrollbar">
                         {fields.map((f: string) => (
                             <div key={f} className="space-y-2">
                                 <p className="text-[9px] font-black text-gray-400 uppercase">{labels[f]}</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {options[f]?.map((v: string) => {
-                                        const sel = (filters[f] || []).includes(v);
-                                        return (
-                                            <button key={v} onClick={() => onToggle(f, v)} className={`px-2 py-0.5 rounded-md text-[9px] font-bold border flex items-center gap-1 transition-all ${sel ? 'bg-primary text-white border-primary shadow-sm' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-primary'}`}>
-                                                {sel ? <CheckSquare className="h-2.5 w-2.5" /> : <Square className="h-2.5 w-2.5" />}
-                                                {v}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                <div className="flex flex-wrap gap-1.5">{options[f]?.map((v: string) => {
+                                    const sel = (filters[f] || []).includes(v);
+                                    return <button key={v} onClick={() => onToggle(f, v)} className={`px-2 py-0.5 rounded-md text-[9px] font-bold border flex items-center gap-1 transition-all ${sel ? 'bg-primary text-white border-primary shadow-sm' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-primary'}`}>{sel ? <CheckSquare className="h-2.5 w-2.5" /> : <Square className="h-2.5 w-2.5" />}{v}</button>;
+                                })}</div>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
-            <div className="p-4 flex-1 relative overflow-hidden">{children}</div>
+
+            <div className="p-4 flex-1 relative overflow-hidden">
+                {children}
+            </div>
+
+            {/* Resize Handle */}
+            <div 
+                onMouseDown={startResize}
+                className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-end justify-end p-1 group-hover:opacity-100 opacity-0 transition-opacity"
+            >
+                <div className="w-2 h-2 border-r-2 border-b-2 border-gray-300 rounded-br-sm" />
+            </div>
+            
+            {isResizing && <div className="absolute inset-0 z-[60] bg-primary/5 border-2 border-primary/20 border-dashed rounded-xl" />}
         </div>
     );
 };
