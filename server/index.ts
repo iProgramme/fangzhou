@@ -155,12 +155,47 @@ app.delete('/api/projects/:id', async (req, res) => {
 // 2. 用户 (Users)
 app.get('/api/users', async (req, res) => {
   try {
-    const allUsers = await db.query.users.findMany();
+    const allUsers = await db.query.users.findMany({
+        // 显式指定返回字段，不返回 password
+        columns: {
+            id: true,
+            name: true,
+            role: true,
+            department: true,
+            email: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true
+        }
+    });
     res.json(allUsers);
   } catch (error) {
     console.error('获取用户失败:', error);
     res.status(500).json({ error: '获取用户失败' });
   }
+});
+
+// --- 认证接口 (Auth) ---
+app.post('/api/auth/login', async (req, res) => {
+    const { username, password } = req.body;
+    try {
+        const user = await db.query.users.findFirst({
+            where: eq(users.name, username)
+        });
+
+        if (user && user.password === password) {
+            if (user.status !== 'active') {
+                return res.status(403).json({ error: '账号已被禁用' });
+            }
+            // 返回脱敏后的用户信息
+            const { password: _, ...userInfo } = user;
+            res.json(userInfo);
+        } else {
+            res.status(401).json({ error: '用户名或密码错误' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: '登录验证失败' });
+    }
 });
 
 app.post('/api/users', async (req, res) => {
@@ -274,3 +309,4 @@ app.get('/api/logs', async (req, res) => {
 app.listen(port, () => {
   console.log(`服务器运行在 http://localhost:${port}`);
 });
+

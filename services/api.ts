@@ -2,7 +2,10 @@
 import { Project, User, SystemDictionary, OperationLog, DictItem } from '../types';
 import { INITIAL_DICTIONARIES, MOCK_USERS, MOCK_PROJECTS, INITIAL_LOGS } from './mockData';
 
-const API_BASE = 'http://localhost:3001/api';
+const API_PORT = 3001;
+const API_BASE = typeof window !== 'undefined' 
+    ? `${window.location.protocol}//${window.location.hostname}:${API_PORT}/api`
+    : `http://localhost:${API_PORT}/api`;
 
 // --- Projects ---
 export const fetchProjects = async (filters: { stage?: string; department?: string } = {}): Promise<Project[]> => {
@@ -111,6 +114,20 @@ export const fetchDictionaries = async (): Promise<SystemDictionary> => {
         console.warn('API 获取字典失败, 使用模拟数据');
         return INITIAL_DICTIONARIES;
     }
+};
+
+// --- Auth ---
+export const login = async (username: string, password: string): Promise<User> => {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '登录失败');
+    }
+    return res.json();
 };
 
 export const updateDictionary = async (key: string, items: DictItem[]): Promise<any> => {

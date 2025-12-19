@@ -113,12 +113,18 @@ const App: React.FC = () => {
   // Data Fetching based on Route
   useEffect(() => {
     const loadData = async () => {
-      // Fetch dictionaries on initial load
+      // Dictionaries can be fetched if missing, as they are not sensitive user data
       if (Object.keys(dictionaries).length === 0) {
           try {
              const d = await fetchDictionaries();
              setDictionaries(d);
-          } catch(e) { console.error('Failed to load initial data', e); }
+          } catch(e) { console.error('Failed to load dictionaries', e); }
+      }
+
+      // SENSITIVE DATA: Only fetch if logged in
+      if (!isLoggedIn) {
+          setLoading(false);
+          return;
       }
 
       // Route-specific fetching
