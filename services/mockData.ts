@@ -68,7 +68,7 @@ export const INITIAL_LOGS: OperationLog[] = [
         action: 'LOGIN',
         targetType: 'SYSTEM',
         details: '系统登录',
-        timestamp: new Date().toISOString()
+        timestamp: new Date()
     }
 ];
 

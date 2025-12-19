@@ -1,0 +1,108 @@
+
+import { Project, User, SystemDictionary, OperationLog, DictItem } from '../types';
+import { INITIAL_DICTIONARIES, MOCK_USERS, MOCK_PROJECTS, INITIAL_LOGS } from './mockData';
+
+const API_BASE = 'http://localhost:3001/api';
+
+// --- Projects ---
+export const fetchProjects = async (): Promise<Project[]> => {
+    try {
+        const res = await fetch(`${API_BASE}/projects`);
+        if (!res.ok) throw new Error('Failed to fetch projects');
+        const data = await res.json();
+        
+        // 数据转换 (例如日期字符串)
+        // 确保 annualData 是一个数组
+        return data.map((p: any) => ({
+            ...p,
+            annualData: p.annualData || []
+        }));
+    } catch (e) {
+        console.warn('API 获取项目失败, 使用模拟数据', e);
+        return MOCK_PROJECTS;
+    }
+};
+
+export const createProject = async (project: Partial<Project>): Promise<Project> => {
+    const res = await fetch(`${API_BASE}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project)
+    });
+    if (!res.ok) throw new Error('创建项目失败');
+    return res.json();
+};
+
+export const updateProject = async (project: Project): Promise<Project> => {
+    const res = await fetch(`${API_BASE}/projects/${project.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project)
+    });
+    if (!res.ok) throw new Error('更新项目失败');
+    return res.json();
+};
+
+export const deleteProject = async (id: string): Promise<void> => {
+    const res = await fetch(`${API_BASE}/projects/${id}`, {
+        method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('删除项目失败');
+};
+
+// --- Users ---
+export const fetchUsers = async (): Promise<User[]> => {
+    try {
+        const res = await fetch(`${API_BASE}/users`);
+        if (!res.ok) throw new Error('获取用户失败');
+        return res.json();
+    } catch (e) {
+        console.warn('API 获取用户失败, 使用模拟数据');
+        return MOCK_USERS;
+    }
+};
+
+export const updateUser = async (user: User): Promise<User> => {
+    const res = await fetch(`${API_BASE}/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user)
+    });
+    return res.json();
+};
+
+// --- Dictionaries ---
+export const fetchDictionaries = async (): Promise<SystemDictionary> => {
+    try {
+        const res = await fetch(`${API_BASE}/dictionaries`);
+        if (!res.ok) throw new Error('获取字典失败');
+        const data = await res.json();
+        // 如果为空 (首次运行)，可能需要种子数据或回退
+        if (Object.keys(data).length === 0) return INITIAL_DICTIONARIES;
+        return data;
+    } catch (e) {
+        console.warn('API 获取字典失败, 使用模拟数据');
+        return INITIAL_DICTIONARIES;
+    }
+};
+
+export const updateDictionary = async (key: string, items: DictItem[]): Promise<any> => {
+    const res = await fetch(`${API_BASE}/dictionaries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, items })
+    });
+    return res.json();
+};
+
+// --- Logs ---
+export const fetchLogs = async (): Promise<OperationLog[]> => {
+    try {
+        const res = await fetch(`${API_BASE}/logs`);
+        if (!res.ok) throw new Error('获取日志失败');
+        return res.json();
+    } catch (e) {
+        console.warn('API 获取日志失败, 使用模拟数据');
+        return INITIAL_LOGS;
+    }
+};

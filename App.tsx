@@ -6,7 +6,8 @@ import ProjectTable from './components/ProjectTable';
 import GroupProjectManager from './components/GroupProjectManager';
 import Settings from './components/Settings';
 import Watermark from './components/Watermark';
-import { MOCK_PROJECTS, CURRENT_USER, MOCK_USERS, INITIAL_DICTIONARIES, INITIAL_LOGS } from './services/mockData';
+import { CURRENT_USER } from './services/mockData';
+import { fetchProjects, createProject, updateProject, deleteProject, fetchUsers, fetchDictionaries, updateDictionary, fetchLogs } from './services/api';
 import { EARLY_COLUMNS, COLLECTION_COLUMNS, PROGRESS_COLUMNS, COMPLETED_COLUMNS } from './constants';
 import { ProjectStage, DEPARTMENT_SLUGS, Project, OperationLog, User, DictItem } from './types';
 
@@ -17,62 +18,93 @@ const App: React.FC = () => {
     return hash || '/';
   });
 
-  // Global State Lifting for Data Consistency
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
-  const [logs, setLogs] = useState<OperationLog[]>(INITIAL_LOGS);
-  const [dictionaries, setDictionaries] = useState(INITIAL_DICTIONARIES);
+  // Global State
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [logs, setLogs] = useState<OperationLog[]>([]);
+  const [dictionaries, setDictionaries] = useState<any>({});
+  const [loading, setLoading] = useState(true);
 
-  // Helper to add log
-  const addLog = (action: OperationLog['action'], targetType: OperationLog['targetType'], details: string, targetId?: string) => {
-    const newLog: OperationLog = {
-        id: Math.random().toString(36).substr(2, 9),
-        userId: CURRENT_USER.id,
-        userName: CURRENT_USER.name,
-        action,
-        targetType,
-        targetId,
-        details,
-        timestamp: new Date().toISOString()
+  // Initial Fetch
+  useEffect(() => {
+    const initData = async () => {
+        try {
+            const [p, u, d, l] = await Promise.all([
+                fetchProjects(),
+                fetchUsers(),
+                fetchDictionaries(),
+                fetchLogs()
+            ]);
+            setProjects(p);
+            setUsers(u);
+            setDictionaries(d);
+            setLogs(l);
+        } catch (error) {
+            console.error('Init failed', error);
+        } finally {
+            setLoading(false);
+        }
     };
-    setLogs(prev => [...prev, newLog]);
+    initData();
+  }, []);
+
+  // Helper to refresh logs
+  const refreshLogs = async () => {
+      const l = await fetchLogs();
+      setLogs(l);
   };
 
   // Project Handlers
-  const handleAddProject = (newProjectData: Partial<Project>) => {
-      const newProject: Project = {
-          id: Math.random().toString(36).substr(2, 9),
-          stage: ProjectStage.EARLY, // Default
-          department: CURRENT_USER.department!, // Default to current user's department if not specified
+  const handleAddProject = async (newProjectData: Partial<Project>) => {
+      const newProject = {
+          stage: ProjectStage.EARLY, 
+          department: CURRENT_USER.department!,
           name: '新项目',
           ...newProjectData,
-      } as Project;
+      };
 
-      setProjects(prev => [...prev, newProject]);
-      addLog('CREATE', 'PROJECT', `创建项目: ${newProject.name}`, newProject.id);
+      try {
+        const created = await createProject(newProject);
+        setProjects(prev => [created, ...prev]);
+        refreshLogs();
+      } catch (e) {
+          alert('创建失败');
+      }
   };
 
-  const handleUpdateProject = (updatedProject: Project) => {
-      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-      addLog('UPDATE', 'PROJECT', `更新项目: ${updatedProject.name}`, updatedProject.id);
+  const handleUpdateProject = async (updatedProject: Project) => {
+      try {
+          const updated = await updateProject(updatedProject);
+          setProjects(prev => prev.map(p => p.id === updated.id ? updated : p));
+          refreshLogs();
+      } catch (e) {
+          alert('更新失败');
+      }
   };
 
-  const handleDeleteProject = (id: string) => {
-      const project = projects.find(p => p.id === id);
-      setProjects(prev => prev.filter(p => p.id !== id));
-      addLog('DELETE', 'PROJECT', `删除项目: ${project?.name || id}`, id);
+  const handleDeleteProject = async (id: string) => {
+      try {
+          await deleteProject(id);
+          setProjects(prev => prev.filter(p => p.id !== id));
+          refreshLogs();
+      } catch (e) {
+          alert('删除失败');
+      }
   };
 
-  // User Handlers
   const handleUpdateUsers = (newUsers: User[]) => {
       setUsers(newUsers);
-      addLog('UPDATE', 'USER', '更新用户列表');
   };
 
   // Dictionary Handler
-  const handleUpdateDictionary = (key: string, values: DictItem[]) => {
-      setDictionaries(prev => ({...prev, [key]: values}));
-      addLog('UPDATE', 'SYSTEM', `更新字典: ${key}`);
+  const handleUpdateDictionary = async (key: string, values: DictItem[]) => {
+      try {
+        const updated = await updateDictionary(key, values);
+        setDictionaries((prev: any) => ({...prev, [key]: updated.items}));
+        refreshLogs();
+      } catch (e) {
+          alert('字典更新失败');
+      }
   };
 
   useEffect(() => {
@@ -90,6 +122,8 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
+    if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
+
     // Handle dynamic group routes: /groups/:slug
     if (currentPath.startsWith('/groups/')) {
         const slug = currentPath.split('/groups/')[1];
@@ -113,7 +147,6 @@ const App: React.FC = () => {
       case '/':
         return <Dashboard />; 
       
-      // Project Cycle Routes - All these views share the same global 'projects' state
       case '/cycle/early':
         return (
           <ProjectTable 
@@ -187,7 +220,6 @@ const App: React.FC = () => {
         />
 
         <div className="flex flex-1 flex-col overflow-hidden">
-            {/* Mobile Header */}
             <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
                 <button onClick={() => setSidebarOpen(true)}>
                     <Menu className="h-6 w-6" />
@@ -195,7 +227,6 @@ const App: React.FC = () => {
                 <span className="font-semibold">项目管理系统</span>
             </header>
 
-            {/* Main Content Area */}
             <main className="flex-1 overflow-y-auto p-6 md:p-12">
                 {renderContent()}
             </main>
