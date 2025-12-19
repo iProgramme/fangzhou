@@ -181,9 +181,29 @@ app.post('/api/users', async (req, res) => {
 app.put('/api/users/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await db.update(users).set(req.body).where(eq(users.id, id)).returning();
+        // 严格排除非数据库字段和只读字段
+        const { id: _, createdAt, updatedAt, ...rest } = req.body;
+        
+        // 确保只包含 schema 中定义的合法字段
+        const allowedFields = ['name', 'password', 'role', 'department', 'email', 'status'];
+        const cleanData = Object.keys(rest)
+            .filter(key => allowedFields.includes(key))
+            .reduce((obj, key) => {
+                obj[key] = rest[key];
+                return obj;
+            }, {} as any);
+
+        const result = await db.update(users)
+            .set({ ...cleanData, updatedAt: new Date() })
+            .where(eq(users.id, id))
+            .returning();
+            
+        if (result.length === 0) {
+            return res.status(404).json({ error: '用户不存在' });
+        }
         res.json(result[0]);
     } catch (error) {
+        console.error('更新用户失败详情:', error);
         res.status(500).json({ error: '更新用户失败' });
     }
 });

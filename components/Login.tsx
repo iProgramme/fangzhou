@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User } from '../types';
+import { fetchUsers } from '../services/api';
 
 interface LoginProps {
   onLogin: (username: string, department?: string, role?: string) => void;
-  users: User[];
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
+const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [dynamicUsers, setDynamicUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+        try {
+            const u = await fetchUsers();
+            setDynamicUsers(u);
+        } catch (e) {
+            console.error('Failed to load users for login');
+        }
+    };
+    loadUsers();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,9 +35,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
     }
 
     // 2. Search in dynamic users list
-    // We treat 'name' as the login username for simplicity
-    const userList = users || [];
-    const user = userList.find(u => u.name === username && u.status === 'active');
+    const user = dynamicUsers.find(u => u.name === username && u.status === 'active');
 
     if (user) {
         // Check password (default to '123' if not set)

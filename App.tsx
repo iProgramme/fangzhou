@@ -103,24 +103,27 @@ const App: React.FC = () => {
   // Data Fetching based on Route
   useEffect(() => {
     const loadData = async () => {
-      // Fetch dictionaries and users on initial load
+      // Fetch dictionaries on initial load
       if (Object.keys(dictionaries).length === 0) {
           try {
-             const [d, u] = await Promise.all([fetchDictionaries(), fetchUsers()]);
+             const d = await fetchDictionaries();
              setDictionaries(d);
-             setUsers(u);
           } catch(e) { console.error('Failed to load initial data', e); }
       }
 
       // Route-specific fetching
       if (currentPath === '/settings') {
-          // Settings needs Logs (Users already fetched or can be refreshed)
+          // Settings needs Users and Logs
           setLoading(true);
           try {
-              const l = await fetchLogs();
+              const [u, l] = await Promise.all([
+                  fetchUsers(),
+                  fetchLogs()
+              ]);
+              setUsers(u);
               setLogs(l);
           } catch (e) {
-              console.error('Failed to load logs', e);
+              console.error('Failed to load settings data', e);
           } finally {
               setLoading(false);
           }
@@ -376,7 +379,7 @@ const App: React.FC = () => {
   };
 
   const renderMainContent = () => {
-    if (!isLoggedIn) return <Login onLogin={handleLogin} users={users} />;
+    if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
     return (
       <>

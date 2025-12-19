@@ -16,6 +16,13 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
     const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict'>('users');
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<Partial<User>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
 
     // Export Handler
     const handleExportData = async (type: 'projects' | 'dictionaries' | 'users') => {
@@ -36,8 +43,9 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
+            showToast('数据导出成功');
         } catch (e) {
-            alert('导出失败');
+            showToast('导出失败', 'error');
         }
     };
 
@@ -51,6 +59,7 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
             try {
                 const importedData = JSON.parse(event.target?.result as string);
                 if (window.confirm(`确定要导入${type}数据吗？现有数据可能会被覆盖或冲突。`)) {
+                    setIsSubmitting(true);
                     if (type === 'dictionaries') {
                         for (const [key, items] of Object.entries(importedData)) {
                             await onUpdateDictionary(key, items as DictItem[]);
@@ -61,14 +70,13 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                             else await createUser(user);
                         }
                         onRefreshUsers();
-                    } else if (type === 'projects') {
-                        // Projects import needs individual API calls in current setup
-                        alert('项目导入功能需要后端批量接口支持，目前建议手动录入。');
                     }
-                    alert('导入操作已执行，请刷新检查。');
+                    showToast('导入完成');
                 }
             } catch (err) {
-                alert('解析文件失败，请确保是正确的 JSON 格式。');
+                showToast('解析文件失败', 'error');
+            } finally {
+                setIsSubmitting(false);
             }
         };
         reader.readAsText(file);
@@ -93,26 +101,36 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
     const handleDeleteUser = async (id: string) => {
         if (window.confirm('确定要删除该用户吗？此操作不可恢复。')) {
             try {
+                setIsSubmitting(true);
                 await deleteUserApi(id);
                 onRefreshUsers();
+                showToast('用户已删除');
             } catch (e) {
-                alert('删除失败');
+                showToast('删除失败', 'error');
+            } finally {
+                setIsSubmitting(false);
             }
         }
     };
 
     const handleSaveUser = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSubmitting(true);
         try {
             if (editingUser.id) {
                 await updateUser(editingUser as User);
+                showToast('更新成功');
             } else {
                 await createUser(editingUser);
+                showToast('创建成功');
             }
             onRefreshUsers();
             setIsUserModalOpen(false);
         } catch (e) {
-            alert('保存失败');
+            console.error('Save user failed', e);
+            showToast('保存失败', 'error');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -193,6 +211,7 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                                     <th className="p-3 font-medium">邮箱</th>
                                     <th className="p-3 font-medium">角色</th>
                                     <th className="p-3 font-medium">所属部门</th>
+                                    <th className="p-3 font-medium">添加日期</th>
                                     <th className="p-3 font-medium">状态</th>
                                     <th className="p-3 font-medium text-right">操作</th>
                                 </tr>
@@ -216,6 +235,9 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                                             </span>
                                         </td>
                                         <td className="p-3 text-muted-foreground text-xs">{user.department || '全院'}</td>
+                                        <td className="p-3 text-muted-foreground text-xs">
+                                            {(user as any).createdAt ? new Date((user as any).createdAt).toLocaleDateString() : '-'}
+                                        </td>
                                         <td className="p-3">
                                             <span className={`inline-flex items-center gap-1.5 text-xs
                                                 ${user.status === 'active' ? 'text-green-600' : 'text-gray-500'}`}>
@@ -493,11 +515,27 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                                                     </div>
                         
                                                     <div className="pt-4 flex justify-end gap-2 border-t">
-                                                        <button type="button" onClick={() => setIsUserModalOpen(false)} className="px-4 py-2 rounded-md border hover:bg-muted text-sm font-medium">取消</button>
-                                                        <button type="submit" className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 text-sm font-medium">保存</button>
+                                                        <button type="button" disabled={isSubmitting} onClick={() => setIsUserModalOpen(false)} className="px-4 py-2 rounded-md border hover:bg-muted text-sm font-medium disabled:opacity-50">取消</button>
+                                                        <button 
+                                                            type="submit" 
+                                                            disabled={isSubmitting}
+                                                            className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 text-sm font-medium flex items-center gap-2 disabled:opacity-70"
+                                                        >
+                                                            {isSubmitting && <RotateCcw className="h-4 w-4 animate-spin" />}
+                                                            {isSubmitting ? '正在保存...' : '保存'}
+                                                        </button>
                                                     </div>
                                                 </form>
                     </div>
+                </div>
+            )}
+
+            {/* Toast Notification */}
+            {toast && (
+                <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-full shadow-2xl animate-in slide-in-from-bottom-4 duration-300 flex items-center gap-3
+                    ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                    {toast.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+                    <span className="font-medium">{toast.message}</span>
                 </div>
             )}
         </div>
