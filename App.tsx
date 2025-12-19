@@ -25,7 +25,23 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<OperationLog[]>([]);
   const [dictionaries, setDictionaries] = useState<any>({});
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear()); // Global year state
+
+  // Persisted Filter State
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    const saved = localStorage.getItem('dashboard_year');
+    return saved ? Number(saved) : new Date().getFullYear();
+  });
+  const [selectedQuarter, setSelectedQuarter] = useState<string>(() => {
+    return localStorage.getItem('dashboard_quarter') || 'all';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_year', selectedYear.toString());
+  }, [selectedYear]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_quarter', selectedQuarter);
+  }, [selectedQuarter]);
 
   // Password Modification State
   const [isPwdModalOpen, setIsPwdModalOpen] = useState(false);
@@ -160,10 +176,11 @@ const App: React.FC = () => {
               if (slug) filters = { department: slug };
           }
 
-          if (filters) {
+          if (filters || currentPath === '/') {
               setLoading(true);
               try {
-                  const p = await fetchProjects(filters);
+                  // For dashboard (currentPath === '/'), filters is null, fetch all
+                  const p = await fetchProjects(filters || {});
                   setProjects(p);
               } catch (e) {
                   console.error('Failed to load projects', e);
@@ -171,7 +188,7 @@ const App: React.FC = () => {
                   setLoading(false);
               }
           } else {
-             // Dashboard or unknown route
+             // Unknown route
              setLoading(false);
           }
       }
@@ -276,6 +293,7 @@ const App: React.FC = () => {
                     selectedYear={selectedYear}
                     availableYears={availableYears}
                     onSelectYear={setSelectedYear}
+                    selectedQuarter={selectedQuarter}
                 />
             );
         }
@@ -300,10 +318,11 @@ const App: React.FC = () => {
                     selectedYear={selectedYear}
                     availableYears={availableYears}
                     onSelectYear={setSelectedYear}
+                    selectedQuarter={selectedQuarter}
                 />
             );
         }
-        return <div className="p-10 text-center text-muted-foreground">您没有分配部门，请联系管理员</div>;
+        return <div className="p-10 text-center text-muted-foreground">您没有分配部门，请联系超级管理员</div>;
     }
 
     switch (currentPath) {
@@ -312,6 +331,8 @@ const App: React.FC = () => {
                   selectedYear={selectedYear} 
                   availableYears={availableYears} 
                   onSelectYear={setSelectedYear} 
+                  selectedQuarter={selectedQuarter}
+                  projects={projects}
                 />; 
       
       case '/cycle/early':
@@ -332,7 +353,7 @@ const App: React.FC = () => {
       case '/cycle/collection':
         return (
           <ProjectTable 
-            title="年度收款计划" // Removed "A2025"
+            title="年度收款计划" 
             data={projects.filter(p => p.stage === ProjectStage.COLLECTION)}
             columns={COLLECTION_COLUMNS as any}
             dictionaries={dictionaries}
@@ -347,7 +368,7 @@ const App: React.FC = () => {
       case '/cycle/progress':
         return (
           <ProjectTable 
-            title="各组项目列表及进度" // Removed "B2025"
+            title="各组项目列表及进度" 
             data={projects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)}
             columns={PROGRESS_COLUMNS as any}
             dictionaries={dictionaries}
@@ -431,20 +452,36 @@ const App: React.FC = () => {
                               </h2>
                               <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
                           </div>
-                          <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
-                              <Calendar className="h-4 w-4 text-primary" />
-                              <span className="text-sm font-medium">切换年份:</span>
-                              <select 
-                                  value={selectedYear} 
-                                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                                  className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
-                              >
-                                  {availableYears.map(year => (
-                                      <option key={year} value={year}>{year}</option>
-                                  ))}
-                              </select>
-                          </div>
-                      </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+                                                            <Calendar className="h-4 w-4 text-primary" />
+                                                            <span className="text-sm font-medium">年份:</span>
+                                                            <select 
+                                                                value={selectedYear} 
+                                                                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                                                className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+                                                            >
+                                                                {availableYears.map(year => (
+                                                                    <option key={year} value={year}>{year}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+                                                            <span className="text-sm font-medium text-muted-foreground">|</span>
+                                                            <span className="text-sm font-medium ml-2">季度:</span>
+                                                            <select 
+                                                                value={selectedQuarter} 
+                                                                onChange={(e) => setSelectedQuarter(e.target.value)}
+                                                                className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+                                                            >
+                                                                <option value="all">全年</option>
+                                                                <option value="1">第一季度</option>
+                                                                <option value="2">第二季度</option>
+                                                                <option value="3">第三季度</option>
+                                                                <option value="4">第四季度</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>                      </div>
                   )}
 
                   {(() => {
