@@ -203,8 +203,8 @@ app.put('/api/users/:id', async (req, res) => {
         }
         res.json(result[0]);
     } catch (error) {
-        console.error('更新用户失败详情:', error);
-        res.status(500).json({ error: '更新用户失败' });
+        console.error('更新用户失败详情 (Full Stack):', error);
+        res.status(500).json({ error: '更新用户失败: ' + (error instanceof Error ? error.message : String(error)) });
     }
 });
 

@@ -68,7 +68,10 @@ export const createUser = async (user: Partial<User>): Promise<User> => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user)
     });
-    if (!res.ok) throw new Error('创建用户失败');
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '创建用户失败');
+    }
     return res.json();
 };
 
@@ -78,6 +81,10 @@ export const updateUser = async (user: User): Promise<User> => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user)
     });
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '更新用户失败');
+    }
     return res.json();
 };
 
@@ -85,7 +92,10 @@ export const deleteUser = async (id: string): Promise<void> => {
     const res = await fetch(`${API_BASE}/users/${id}`, {
         method: 'DELETE'
     });
-    if (!res.ok) throw new Error('删除用户失败');
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '删除用户失败');
+    }
 };
 
 // --- Dictionaries ---

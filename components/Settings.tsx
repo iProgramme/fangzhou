@@ -43,7 +43,6 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            showToast('数据导出成功');
         } catch (e) {
             showToast('导出失败', 'error');
         }
