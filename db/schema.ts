@@ -5,6 +5,7 @@ import { pgTable, text, timestamp, boolean, integer, jsonb, serial, date } from 
 export const users = pgTable('users', {
   id: text('id').primaryKey(), // 使用字符串ID，与模拟数据保持一致 (如 'u-001')
   name: text('name').notNull(), // 姓名
+  password: text('password').default('123'), // 默认密码 123
   role: text('role').notNull(), // 'admin' | 'user' | 'manager'
   department: text('department'), // 部门
   email: text('email'), // 邮箱

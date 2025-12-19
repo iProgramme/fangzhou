@@ -57,14 +57,19 @@ export const deleteProject = async (id: string): Promise<void> => {
 
 // --- Users ---
 export const fetchUsers = async (): Promise<User[]> => {
-    try {
-        const res = await fetch(`${API_BASE}/users`);
-        if (!res.ok) throw new Error('获取用户失败');
-        return res.json();
-    } catch (e) {
-        console.warn('API 获取用户失败, 使用模拟数据');
-        return MOCK_USERS;
-    }
+    const res = await fetch(`${API_BASE}/users`);
+    if (!res.ok) throw new Error('获取用户失败');
+    return res.json();
+};
+
+export const createUser = async (user: Partial<User>): Promise<User> => {
+    const res = await fetch(`${API_BASE}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user)
+    });
+    if (!res.ok) throw new Error('创建用户失败');
+    return res.json();
 };
 
 export const updateUser = async (user: User): Promise<User> => {
@@ -74,6 +79,13 @@ export const updateUser = async (user: User): Promise<User> => {
         body: JSON.stringify(user)
     });
     return res.json();
+};
+
+export const deleteUser = async (id: string): Promise<void> => {
+    const res = await fetch(`${API_BASE}/users/${id}`, {
+        method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('删除用户失败');
 };
 
 // --- Dictionaries ---

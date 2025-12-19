@@ -158,16 +158,22 @@ app.get('/api/users', async (req, res) => {
     const allUsers = await db.query.users.findMany();
     res.json(allUsers);
   } catch (error) {
+    console.error('获取用户失败:', error);
     res.status(500).json({ error: '获取用户失败' });
   }
 });
 
 app.post('/api/users', async (req, res) => {
     try {
-        const newUser = { ...req.body, id: req.body.id || nanoid(8) };
+        const newUser = { 
+            ...req.body, 
+            id: req.body.id || nanoid(8),
+            password: req.body.password || '123' // 默认密码
+        };
         const result = await db.insert(users).values(newUser).returning();
         res.json(result[0]);
     } catch (error) {
+        console.error('创建用户失败:', error);
         res.status(500).json({ error: '创建用户失败' });
     }
 });

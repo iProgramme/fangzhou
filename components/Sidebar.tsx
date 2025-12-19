@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Settings, ChevronDown, ChevronRight, X, Briefcase, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, ChevronDown, ChevronRight, X, Briefcase, LogOut, KeyRound } from 'lucide-react';
 import { User, Department, DEPARTMENT_SLUGS } from '../types'; // Import User, Department and DEPARTMENT_SLUGS
 
 interface SidebarProps {
@@ -9,6 +9,7 @@ interface SidebarProps {
   setIsOpen: (isOpen: boolean) => void;
   currentUser: User | null;
   onLogout: () => void;
+  onChangePassword: () => void; // New prop
 }
 
 type MenuItem = {
@@ -18,7 +19,7 @@ type MenuItem = {
   children?: { name: string; path: string; icon?: React.ElementType }[];
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setIsOpen, currentUser, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setIsOpen, currentUser, onLogout, onChangePassword }) => {
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     '项目周期': true,
     '各项目组': true
@@ -59,22 +60,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
   ];
 
   const filteredMenuStructure = menuStructure.filter(item => {
-    // 1. Dashboard is visible to everyone
-    if (item.path === '/') return true;
+    const isAdmin = currentUser?.role === 'admin';
 
-    // 2. Project Cycle is visible to everyone
-    if (item.name === '项目周期') return true;
+    // 1. Dashboard only for admin
+    if (item.path === '/') return isAdmin;
+
+    // 2. Project Cycle only for admin
+    if (item.name === '项目周期') return isAdmin;
 
     // 3. System Settings only for admin
-    if (item.path === '/settings') {
-      return currentUser?.role === 'admin';
-    }
+    if (item.path === '/settings') return isAdmin;
 
-    // 4. Group filtering
+    // 4. Group filtering for users
     if (item.name === '各项目组') {
-      if (currentUser?.role === 'admin') return true;
+      if (isAdmin) return true;
       
-      // Filter children for non-admins
+      // Filter children for non-admins (only their own department)
       if (item.children) {
         const filteredChildren = item.children.filter(child => {
           const dept = DEPARTMENT_SLUGS[child.path.split('/groups/')[1]];
@@ -82,7 +83,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
         });
         
         if (filteredChildren.length > 0) {
-          item.children = filteredChildren;
+          // Clone the item and its children to avoid side effects
+          const newItem = { ...item, children: filteredChildren };
+          // Note: In a real app we'd handle the object structure better, 
+          // but for the sake of the filter we need to return true if it matches.
           return true;
         }
       }
@@ -90,6 +94,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
     }
 
     return true;
+  }).map(item => {
+    // Extra safety: ensure the children of "各项目组" are actually filtered in the returned array
+    if (item.name === '各项目组' && currentUser?.role !== 'admin') {
+      const filteredChildren = item.children?.filter(child => {
+        const dept = DEPARTMENT_SLUGS[child.path.split('/groups/')[1]];
+        return currentUser?.department === dept;
+      });
+      return { ...item, children: filteredChildren };
+    }
+    return item;
   });
 
   return (
@@ -192,17 +206,26 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
                <div className="flex flex-col">
                  <span className="text-sm font-medium">{currentUser?.name || '未知用户'}</span>
                  <span className="text-xs text-muted-foreground">
-                    {currentUser?.role === 'admin' ? '管理员' : currentUser?.role === 'manager' ? '经理' : '普通用户'}
+                    {currentUser?.role === 'admin' ? '超级管理员' : currentUser?.role === 'manager' ? '经理' : '普通用户'}
                  </span>
                </div>
             </div>
-            <button 
-              onClick={onLogout}
-              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-              title="退出登录"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={onChangePassword}
+                className="p-2 text-muted-foreground hover:text-primary transition-colors"
+                title="修改密码"
+              >
+                <KeyRound className="h-4 w-4" />
+              </button>
+              <button 
+                onClick={onLogout}
+                className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+                title="退出登录"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

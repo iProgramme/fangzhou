@@ -93,6 +93,7 @@ export interface Project {
 export interface User {
   id: string;
   name: string;
+  password?: string; // Add password field
   role: 'admin' | 'user' | 'manager';
   department?: Department;
   email?: string;

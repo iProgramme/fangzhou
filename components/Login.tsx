@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { User } from '../types';
 
 interface LoginProps {
   onLogin: (username: string, department?: string, role?: string) => void;
+  users: User[];
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, users }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -13,18 +15,27 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     e.preventDefault();
     setError('');
 
-    // Mock authentication for now
-    // In a real app, this would involve an API call to a login endpoint
+    // 1. Check for hardcoded admin first (for safety)
     if (username === 'admin' && password === 'admin') {
-      onLogin(username, undefined, 'admin'); // Admin has no specific department, can see all
-    } else if (username === 'tang' && password === '123') {
-      onLogin(username, '综合组（汤、黄）', 'user');
-    } else if (username === 'li' && password === '123') {
-        onLogin(username, '城市更新组（利）', 'user');
+        onLogin(username, undefined, 'admin');
+        return;
     }
-    // Add more mock users as needed
-    else {
-      setError('Invalid username or password');
+
+    // 2. Search in dynamic users list
+    // We treat 'name' as the login username for simplicity
+    const userList = users || [];
+    const user = userList.find(u => u.name === username && u.status === 'active');
+
+    if (user) {
+        // Check password (default to '123' if not set)
+        const userPassword = user.password || '123';
+        if (password === userPassword) {
+            onLogin(user.name, user.department, user.role);
+        } else {
+            setError('密码错误');
+        }
+    } else {
+      setError('用户不存在或已被禁用');
     }
   };
 

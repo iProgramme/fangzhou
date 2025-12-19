@@ -1,30 +1,87 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette } from 'lucide-react';
+import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson } from 'lucide-react';
 import { User, Department, OperationLog, SystemDictionary, DictItem } from '../types';
 import { TAG_COLORS } from '../services/mockData';
+import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects } from '../services/api';
 
 interface SettingsProps {
     users: User[];
-    onUpdateUsers: (users: User[]) => void;
+    onRefreshUsers: () => void;
     logs: OperationLog[];
     dictionaries: SystemDictionary;
     onUpdateDictionary: (key: string, values: DictItem[]) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ users: initialUsers, onUpdateUsers, logs, dictionaries, onUpdateDictionary }) => {
+const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictionaries, onUpdateDictionary }) => {
     const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict'>('users');
-    const [users, setUsers] = useState<User[]>(initialUsers);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<Partial<User>>({});
+
+    // Export Handler
+    const handleExportData = async (type: 'projects' | 'dictionaries' | 'users') => {
+        let data: any;
+        let filename = `export_${type}_${new Date().toISOString().split('T')[0]}.json`;
+
+        try {
+            if (type === 'projects') data = await fetchProjects();
+            else if (type === 'dictionaries') data = dictionaries;
+            else if (type === 'users') data = users;
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert('导出失败');
+        }
+    };
+
+    // Import Handler
+    const handleImportData = (type: 'projects' | 'dictionaries' | 'users', e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const importedData = JSON.parse(event.target?.result as string);
+                if (window.confirm(`确定要导入${type}数据吗？现有数据可能会被覆盖或冲突。`)) {
+                    if (type === 'dictionaries') {
+                        for (const [key, items] of Object.entries(importedData)) {
+                            await onUpdateDictionary(key, items as DictItem[]);
+                        }
+                    } else if (type === 'users') {
+                        for (const user of importedData) {
+                            if ((user as User).id) await updateUser(user as User);
+                            else await createUser(user);
+                        }
+                        onRefreshUsers();
+                    } else if (type === 'projects') {
+                        // Projects import needs individual API calls in current setup
+                        alert('项目导入功能需要后端批量接口支持，目前建议手动录入。');
+                    }
+                    alert('导入操作已执行，请刷新检查。');
+                }
+            } catch (err) {
+                alert('解析文件失败，请确保是正确的 JSON 格式。');
+            }
+        };
+        reader.readAsText(file);
+    };
 
     // Dictionary State
     const [selectedDictKey, setSelectedDictKey] = useState<string>(Object.keys(dictionaries)[0]);
     const [newDictValue, setNewDictValue] = useState('');
     const [selectedColor, setSelectedColor] = useState<number>(0);
 
-    // User Management Handlers (Local State wrapping prop)
+    // User Management Handlers
     const handleAddUser = () => {
-        setEditingUser({ status: 'active', role: 'user' });
+        setEditingUser({ status: 'active', role: 'user', password: '123' });
         setIsUserModalOpen(true);
     };
 
@@ -33,26 +90,30 @@ const Settings: React.FC<SettingsProps> = ({ users: initialUsers, onUpdateUsers,
         setIsUserModalOpen(true);
     };
 
-    const handleDeleteUser = (id: string) => {
+    const handleDeleteUser = async (id: string) => {
         if (window.confirm('确定要删除该用户吗？此操作不可恢复。')) {
-            const newUsers = users.filter(u => u.id !== id);
-            setUsers(newUsers);
-            onUpdateUsers(newUsers);
+            try {
+                await deleteUserApi(id);
+                onRefreshUsers();
+            } catch (e) {
+                alert('删除失败');
+            }
         }
     };
 
-    const handleSaveUser = (e: React.FormEvent) => {
+    const handleSaveUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        let newUsers;
-        if (editingUser.id) {
-            newUsers = users.map(u => u.id === editingUser.id ? editingUser as User : u);
-        } else {
-            const newUser = { ...editingUser, id: Math.random().toString(36).substr(2, 9) } as User;
-            newUsers = [...users, newUser];
+        try {
+            if (editingUser.id) {
+                await updateUser(editingUser as User);
+            } else {
+                await createUser(editingUser);
+            }
+            onRefreshUsers();
+            setIsUserModalOpen(false);
+        } catch (e) {
+            alert('保存失败');
         }
-        setUsers(newUsers);
-        onUpdateUsers(newUsers);
-        setIsUserModalOpen(false);
     };
 
     // Dictionary Handlers
@@ -151,7 +212,7 @@ const Settings: React.FC<SettingsProps> = ({ users: initialUsers, onUpdateUsers,
                                                 ${user.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-200' : 
                                                 user.role === 'manager' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                                                 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-                                                {user.role === 'admin' ? '管理员' : user.role === 'manager' ? '部门经理' : '普通用户'}
+                                                {user.role === 'admin' ? '超级管理员' : user.role === 'manager' ? '部门经理' : '普通用户'}
                                             </span>
                                         </td>
                                         <td className="p-3 text-muted-foreground text-xs">{user.department || '全院'}</td>
@@ -283,39 +344,86 @@ const Settings: React.FC<SettingsProps> = ({ users: initialUsers, onUpdateUsers,
                 </div>
             )}
 
-            {/* TAB: System (Backup/Restore) */}
+            {/* TAB: System (Import/Export) */}
             {activeTab === 'system' && (
                  <div className="rounded-xl border bg-card p-6 shadow-sm animate-in fade-in">
-                    <div className="flex items-center gap-2 mb-4">
+                    <div className="flex items-center gap-2 mb-6">
                         <Database className="h-5 w-5 text-primary" />
-                        <h3 className="text-lg font-medium">数据运维</h3>
+                        <h3 className="text-lg font-medium">数据导入与导出</h3>
                     </div>
                     
-                    <div className="grid gap-4 md:grid-cols-2">
-                         <div className="p-4 border rounded-lg bg-muted/20">
-                            <p className="font-medium mb-2">数据库状态</p>
-                            <div className="flex items-center gap-2 text-sm text-green-600">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                </span>
-                                已连接 (Postgres Neon)
+                    <div className="grid gap-6 md:grid-cols-3">
+                         {/* Projects */}
+                         <div className="p-5 border rounded-xl bg-muted/10 flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <FileJson className="h-5 w-5 text-blue-500" />
+                                    <p className="font-bold">项目数据表</p>
+                                </div>
+                                <p className="text-xs text-muted-foreground mb-4">包含所有项目的前期、收款、进度及完成状态数据。</p>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-2">上次心跳检测: 刚刚</p>
-                         </div>
-    
-                         <div className="p-4 border rounded-lg">
-                            <p className="font-medium mb-2">定时备份</p>
-                            <p className="text-sm text-muted-foreground mb-4">每日凌晨 02:00 (UTC)</p>
-                            <div className="flex gap-2">
-                                 <button className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded text-sm hover:opacity-90">
-                                    <Save className="h-4 w-4" /> 立即备份
+                            <div className="space-y-2">
+                                 <button onClick={() => handleExportData('projects')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
+                                    <Download className="h-4 w-4" /> 导出 JSON
                                  </button>
-                                 <button className="flex items-center gap-2 border bg-transparent px-3 py-1.5 rounded text-sm hover:bg-muted">
-                                    <RotateCcw className="h-4 w-4" /> 恢复数据
-                                 </button>
+                                 <label className="w-full flex items-center justify-center gap-2 border bg-card px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted cursor-pointer transition-colors">
+                                    <Upload className="h-4 w-4" /> 导入数据
+                                    <input type="file" accept=".json" className="hidden" onChange={(e) => handleImportData('projects', e)} />
+                                 </label>
                             </div>
                          </div>
+
+                         {/* Dictionaries */}
+                         <div className="p-5 border rounded-xl bg-muted/10 flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <BookOpen className="h-5 w-5 text-green-500" />
+                                    <p className="font-bold">系统字典表</p>
+                                </div>
+                                <p className="text-xs text-muted-foreground mb-4">包含地区、类别、三审类型、标签颜色等所有配置项。</p>
+                            </div>
+                            <div className="space-y-2">
+                                 <button onClick={() => handleExportData('dictionaries')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
+                                    <Download className="h-4 w-4" /> 导出 JSON
+                                 </button>
+                                 <label className="w-full flex items-center justify-center gap-2 border bg-card px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted cursor-pointer transition-colors">
+                                    <Upload className="h-4 w-4" /> 导入数据
+                                    <input type="file" accept=".json" className="hidden" onChange={(e) => handleImportData('dictionaries', e)} />
+                                 </label>
+                            </div>
+                         </div>
+
+                         {/* Users */}
+                         <div className="p-5 border rounded-xl bg-muted/10 flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <UserIcon className="h-5 w-5 text-purple-500" />
+                                    <p className="font-bold">用户与权限表</p>
+                                </div>
+                                <p className="text-xs text-muted-foreground mb-4">包含所有账号、部门分配、角色权限及登录密码数据。</p>
+                            </div>
+                            <div className="space-y-2">
+                                 <button onClick={() => handleExportData('users')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
+                                    <Download className="h-4 w-4" /> 导出 JSON
+                                 </button>
+                                 <label className="w-full flex items-center justify-center gap-2 border bg-card px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted cursor-pointer transition-colors">
+                                    <Upload className="h-4 w-4" /> 导入数据
+                                    <input type="file" accept=".json" className="hidden" onChange={(e) => handleImportData('users', e)} />
+                                 </label>
+                            </div>
+                         </div>
+                    </div>
+                    
+                    <div className="mt-8 p-4 bg-yellow-50 border border-yellow-100 rounded-lg flex gap-3">
+                        <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0" />
+                        <div className="text-xs text-yellow-800 leading-relaxed">
+                            <p className="font-bold mb-1">注意事项：</p>
+                            <ul className="list-disc ml-4 space-y-1">
+                                <li>导入操作具有危险性，建议在导入前先执行“导出”以备份现有数据。</li>
+                                <li>请确保导入的 JSON 文件结构与系统导出的文件保持一致。</li>
+                                <li>用户表导入时，如果 ID 重复则会执行更新，如果 ID 为空则会创建新用户。</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             )}
@@ -339,48 +447,56 @@ const Settings: React.FC<SettingsProps> = ({ users: initialUsers, onUpdateUsers,
                                 <X className="h-5 w-5"/>
                             </button>
                         </div>
-                        <form onSubmit={handleSaveUser} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">姓名</label>
-                                    <input required className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.name || ''} onChange={e => setEditingUser({...editingUser, name: e.target.value})} placeholder="请输入姓名"/>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">邮箱</label>
-                                    <input type="email" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.email || ''} onChange={e => setEditingUser({...editingUser, email: e.target.value})} placeholder="user@example.com"/>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">角色</label>
-                                    <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.role || 'user'} onChange={e => setEditingUser({...editingUser, role: e.target.value as any})}>
-                                        <option value="user">普通用户</option>
-                                        <option value="manager">部门经理</option>
-                                        <option value="admin">系统管理员</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">状态</label>
-                                    <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.status || 'active'} onChange={e => setEditingUser({...editingUser, status: e.target.value as any})}>
-                                        <option value="active">正常</option>
-                                        <option value="inactive">禁用</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">所属部门</label>
-                                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.department || ''} onChange={e => setEditingUser({...editingUser, department: e.target.value as any})}>
-                                    <option value="">-- 全院 --</option>
-                                    {Object.values(Department).map(dept => (
-                                        <option key={dept} value={dept}>{dept}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="pt-4 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsUserModalOpen(false)} className="px-4 py-2 rounded-md border hover:bg-muted text-sm font-medium">取消</button>
-                                <button type="submit" className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 text-sm font-medium">保存</button>
-                            </div>
-                        </form>
+                                                <form onSubmit={handleSaveUser} className="space-y-4">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium">姓名 (登录账号)</label>
+                                                            <input required className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.name || ''} onChange={e => setEditingUser({...editingUser, name: e.target.value})} placeholder="请输入姓名"/>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium">登录密码</label>
+                                                            <input required type="text" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.password || ''} onChange={e => setEditingUser({...editingUser, password: e.target.value})} placeholder="默认 123"/>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium">邮箱</label>
+                                                            <input type="email" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.email || ''} onChange={e => setEditingUser({...editingUser, email: e.target.value})} placeholder="user@example.com"/>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium">角色</label>
+                                                            <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.role || 'user'} onChange={e => setEditingUser({...editingUser, role: e.target.value as any})}>
+                                                                                                        <option value="user">普通用户</option>
+                                                                                                        <option value="manager">部门经理</option>
+                                                                                                        <option value="admin">超级管理员</option>
+                                                                                                    </select>
+                                                                                                </div>
+                                                                                            </div>                        
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium">状态</label>
+                                                            <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.status || 'active'} onChange={e => setEditingUser({...editingUser, status: e.target.value as any})}>
+                                                                <option value="active">正常</option>
+                                                                <option value="inactive">禁用</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium">所属部门</label>
+                                                            <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm" value={editingUser.department || ''} onChange={e => setEditingUser({...editingUser, department: e.target.value as any})}>
+                                                                <option value="">-- 全院 --</option>
+                                                                {Object.values(Department).map(dept => (
+                                                                    <option key={dept} value={dept}>{dept}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                        
+                                                    <div className="pt-4 flex justify-end gap-2 border-t">
+                                                        <button type="button" onClick={() => setIsUserModalOpen(false)} className="px-4 py-2 rounded-md border hover:bg-muted text-sm font-medium">取消</button>
+                                                        <button type="submit" className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 text-sm font-medium">保存</button>
+                                                    </div>
+                                                </form>
                     </div>
                 </div>
             )}
