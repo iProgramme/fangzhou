@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend, LineChart, Line, ComposedChart, Area
+  PieChart, Pie, Cell, Legend, ComposedChart, Area
 } from 'recharts';
 import { Project, ProjectStage, AnnualData } from '../types';
-import { Wallet, TrendingUp, FileText, Target, PieChart as PieIcon, BarChart3, Building, Calendar } from 'lucide-react';
+import { Wallet, TrendingUp, FileText, Target, PieChart as PieIcon, BarChart3, Building, Calendar, Filter, X, CheckSquare, Square, Maximize2 } from 'lucide-react';
 
 interface DashboardProps {
     selectedYear: number;
@@ -16,33 +16,27 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, projects }) => {
   const [activeTab, setActiveTab] = useState<'financial' | 'early'>('financial');
+  const [openFilterKey, setOpenFilterKey] = useState<string | null>(null);
+  const [zoomedChart, setZoomedChart] = useState<{key: string, title: string} | null>(null);
   
-  // Local Filter States for each chart
-  const [localFilters, setLocalFilters] = useState<Record<string, string>>(() => {
-      const saved = localStorage.getItem('dashboard_local_filters');
-      return saved ? JSON.parse(saved) : {
-          contractSource: 'all',
-          collectionSource: 'all',
-          contractType: 'all',
-          collectionType: 'all',
-          regional: 'all',
-          earlySource: 'all',
-          earlyProbability: 'all',
-          earlyYear: 'all',
-          earlyType: 'all'
-      };
+  const [localFilters, setLocalFilters] = useState<Record<string, Record<string, string[]>>>(() => {
+      const saved = localStorage.getItem('dashboard_v5_filters');
+      return saved ? JSON.parse(saved) : { contractSource: {}, collectionSource: {}, contractType: {}, collectionType: {}, regional: {}, earlySource: {}, earlyProbability: {}, earlyYear: {}, earlyType: {} };
   });
 
-  React.useEffect(() => {
-      localStorage.setItem('dashboard_local_filters', JSON.stringify(localFilters));
+  useEffect(() => {
+      localStorage.setItem('dashboard_v5_filters', JSON.stringify(localFilters));
   }, [localFilters]);
 
-  const updateLocalFilter = (key: string, val: string) => {
-      setLocalFilters(prev => ({ ...prev, [key]: val }));
+  const toggleFilterValue = (chartKey: string, field: string, val: string) => {
+      setLocalFilters(prev => {
+          const current = prev[chartKey][field] || [];
+          const next = current.includes(val) ? current.filter(v => v !== val) : [...current, val];
+          return { ...prev, [chartKey]: { ...prev[chartKey], [field]: next } };
+      });
   };
 
   const analytics = useMemo(() => {
-    // 1. Basic Year Filtering
     const yearProjects = projects.filter(p => {
         const hasAnnualData = p.annualData?.some(d => d.year === selectedYear);
         const isEarlyForYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
@@ -50,14 +44,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         return hasAnnualData || isEarlyForYear || isSignedThisYear;
     });
 
-    // 2. Quarter Filtering Logic
     const filterByQuarter = (data: Project[]) => {
         if (selectedQuarter === 'all') return data;
         return data.filter(p => {
-            const date = p.signingDate;
-            if (!date) return false;
-            const month = parseInt(date.split('-')[1]);
-            const q = Math.ceil(month / 3).toString();
+            if (!p.signingDate) return false;
+            const q = Math.ceil(parseInt(p.signingDate.split('-')[1]) / 3).toString();
             return q === selectedQuarter;
         });
     };
@@ -71,350 +62,242 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         return (record?.[key] as number) || 0;
     };
 
-    // Advanced Local Filtering Helper
-    const applyLocalFilter = (data: Project[], filterVal: string, field: keyof Project) => {
-        if (!filterVal || filterVal === 'all') return data;
-        return data.filter(p => p[field] === filterVal);
+    const applyMultiFilter = (data: Project[], filters: Record<string, string[]>) => {
+        return data.filter(p => Object.entries(filters).every(([field, values]) => {
+            if (!values || values.length === 0) return true;
+            return values.includes(p[field as keyof Project] as string);
+        }));
     };
 
-    // --- Aggregation ---
     const aggregate = (data: Project[], key: keyof Project, valFn: (p: Project) => number) => {
         const map = new Map<string, number>();
         data.forEach(p => {
-            const k = (p[key] as string) || '其他/未分类';
+            const k = (p[key] as string) || '未分类';
             map.set(k, (map.get(k) || 0) + valFn(p));
         });
         return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
     };
 
-    // --- Calculate Final Chart Data with Local Filters ---
-    const dataContractSource = aggregate(applyLocalFilter(projectsActive, localFilters.contractSource, 'department'), 'source', p => getYearlyValue(p, 'contractAmount'));
-    const dataCollectionSource = aggregate(applyLocalFilter(projectsActive, localFilters.collectionSource, 'department'), 'source', p => getYearlyValue(p, 'collectedAmount'));
-    
-    const dataContractByType = aggregate(applyLocalFilter(projectsActive, localFilters.contractType, 'region'), 'category', p => getYearlyValue(p, 'contractAmount'));
-    const dataCollectionByType = aggregate(applyLocalFilter(projectsActive, localFilters.collectionType, 'region'), 'category', p => getYearlyValue(p, 'collectedAmount'));
-    
-    const dataRegionalContract = aggregate(applyLocalFilter(projectsActive, localFilters.regional, 'department'), 'region', p => getYearlyValue(p, 'contractAmount'));
-    const dataRegionalCollection = aggregate(applyLocalFilter(projectsActive, localFilters.regional, 'department'), 'region', p => getYearlyValue(p, 'collectedAmount'));
-
-    const dataEarlySource = aggregate(applyLocalFilter(earlyProjects, localFilters.earlySource, 'region'), 'source', p => 1);
-    const dataEarlyProb = aggregate(applyLocalFilter(earlyProjects, localFilters.earlyProbability, 'source'), 'probability', p => 1);
-    const dataEarlyYear = aggregate(applyLocalFilter(earlyProjects, localFilters.earlyYear, 'department'), 'estimatedSignYear', p => p.totalAmount || 0);
-    const dataEarlyType = aggregate(applyLocalFilter(earlyProjects, localFilters.earlyType, 'department'), 'category', p => 1);
-
-    const totalContract = projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'contractAmount'), 0);
-    const totalCollected = projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'collectedAmount'), 0);
-    const contractTarget = projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.8; 
-    const collectionTarget = projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.6;
-
-    const earlyTotalEstimate = earlyProjects.reduce((acc, p) => acc + (p.totalAmount || 0), 0);
-
     return {
-        totalContract, totalCollected, contractTarget, collectionTarget,
-        dataContractSource, dataCollectionSource, dataContractByType, dataCollectionByType,
-        dataRegionalContract, dataRegionalCollection,
-        earlyTotalEstimate, dataEarlySource, dataEarlyProb, dataEarlyYear, dataEarlyType
+        totalContract: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'contractAmount'), 0),
+        totalCollected: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'collectedAmount'), 0),
+        contractTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.8,
+        collectionTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.6,
+        
+        contractSource: aggregate(applyMultiFilter(projectsActive, localFilters.contractSource), 'source', p => getYearlyValue(p, 'contractAmount')),
+        collectionSource: aggregate(applyMultiFilter(projectsActive, localFilters.collectionSource), 'source', p => getYearlyValue(p, 'collectedAmount')),
+        contractType: aggregate(applyMultiFilter(projectsActive, localFilters.contractType), 'category', p => getYearlyValue(p, 'contractAmount')),
+        collectionType: aggregate(applyMultiFilter(projectsActive, localFilters.collectionType), 'category', p => getYearlyValue(p, 'collectedAmount')),
+        regional: aggregate(applyMultiFilter(projectsActive, localFilters.regional), 'region', p => getYearlyValue(p, 'contractAmount')),
+        regionalColl: aggregate(applyMultiFilter(projectsActive, localFilters.regional), 'region', p => getYearlyValue(p, 'collectedAmount')),
+
+        earlyTotal: earlyProjects.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
+        earlySource: aggregate(applyMultiFilter(earlyProjects, localFilters.earlySource), 'source', p => 1),
+        earlyProb: aggregate(applyMultiFilter(earlyProjects, localFilters.earlyProbability), 'probability', p => 1),
+        earlyYear: aggregate(applyMultiFilter(earlyProjects, localFilters.earlyYear), 'estimatedSignYear', p => p.totalAmount || 0),
+        earlyType: aggregate(applyMultiFilter(earlyProjects, localFilters.earlyType), 'category', p => 1)
     };
   }, [selectedYear, selectedQuarter, projects, localFilters]);
 
-  // Derived options for filters from current project data
   const options = useMemo(() => {
-      const getUnique = (data: Project[], key: keyof Project) => 
-          Array.from(new Set(data.map(p => p[key] as string).filter(Boolean))).sort();
-      
-      return {
-          departments: getUnique(projects, 'department'),
-          regions: getUnique(projects, 'region'),
-          sources: getUnique(projects, 'source')
-      };
+      const getUnique = (key: keyof Project) => Array.from(new Set(projects.map(p => p[key] as string).filter(Boolean))).sort();
+      return { department: getUnique('department'), region: getUnique('region'), source: getUnique('source'), category: getUnique('category'), threeReviewType: getUnique('threeReviewType'), probability: getUnique('probability') };
   }, [projects]);
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
   const formatWan = (val: number) => `¥${(val / 10000).toFixed(0)}w`;
+  const fieldLabels: Record<string, string> = { department: '部门', region: '地区', source: '来源', category: '类别', threeReviewType: '三审', probability: '可能性' };
+
+  // Helper to render specific charts
+  const renderChartContent = (key: string, isZoomed = false) => {
+      const h = isZoomed ? 500 : 220;
+      switch(key) {
+          case 'contractSource': case 'collectionSource':
+              return (
+                <ResponsiveContainer width="100%" height={h}>
+                    <PieChart><Pie data={(analytics as any)[key]} cx="50%" cy="50%" innerRadius={isZoomed ? 80 : 45} outerRadius={isZoomed ? 150 : 70} paddingAngle={4} dataKey="value" label={isZoomed}>{ (analytics as any)[key].map((_:any, i:number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />) }</Pie><Tooltip formatter={(v:any)=>formatWan(v)}/><Legend verticalAlign="bottom" iconType="circle"/></PieChart>
+                </ResponsiveContainer>
+              );
+          case 'contractType': case 'collectionType':
+              return (
+                <ResponsiveContainer width="100%" height={h}>
+                    <BarChart data={(analytics as any)[key]} layout="vertical" margin={{left: 10, right: 40}}><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={80} tick={{fontSize: 10, fontWeight: 600}} /><Tooltip formatter={(v:any)=>formatWan(v)} /><Bar dataKey="value" fill={key.includes('contract') ? '#6366f1' : '#10b981'} radius={[0, 4, 4, 0]} label={{position: 'right', fontSize: 10, fontWeight: 700}}/></BarChart>
+                </ResponsiveContainer>
+              );
+          case 'regional':
+              return (
+                <ResponsiveContainer width="100%" height={h}>
+                    <BarChart data={analytics.regional} margin={{bottom: 20}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" tick={{fontSize: 9, fontWeight: 600}} interval={0} angle={-30} textAnchor="end" /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Legend verticalAlign="top" align="right"/><Bar dataKey="value" name="合同" fill="#6366f1" radius={[2, 2, 0, 0]} /><Bar data={analytics.regionalColl} dataKey="value" name="已收" fill="#f43f5e" radius={[2, 2, 0, 0]} /></BarChart>
+                </ResponsiveContainer>
+              );
+          case 'earlySource': case 'earlyType':
+              return (
+                <ResponsiveContainer width="100%" height={h}>
+                    <PieChart><Pie data={(analytics as any)[key]} cx="50%" cy="50%" outerRadius={isZoomed ? 150 : 70} dataKey="value" label={isZoomed}>{ (analytics as any)[key].map((_:any, i:number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />) }</Pie><Tooltip /><Legend verticalAlign="bottom"/></PieChart>
+                </ResponsiveContainer>
+              );
+          case 'earlyProbability':
+              return (
+                <ResponsiveContainer width="100%" height={h}>
+                    <BarChart data={analytics.earlyProb} margin={{top: 20}}><XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 700}} /><YAxis hide /><Tooltip /><Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={isZoomed ? 80 : 40} label={{position: 'top', fontSize: 11, fontWeight: 800}}/></BarChart>
+                </ResponsiveContainer>
+              );
+          case 'earlyYear':
+              return (
+                <ResponsiveContainer width="100%" height={h}>
+                    <ComposedChart data={analytics.earlyYear} margin={{bottom: 10}}><XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 600}} /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Area type="monotone" dataKey="value" fill="#6366f1" fillOpacity={0.1} stroke="#6366f1"/><Bar dataKey="value" fill="#6366f1" barSize={isZoomed ? 50 : 25} radius={[2, 2, 0, 0]} /></ComposedChart>
+                </ResponsiveContainer>
+              );
+          default: return null;
+      }
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-20">
-      <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-600">
-            经营管理大屏
-          </h1>
-          <p className="text-muted-foreground">数据统计范围：{selectedYear}年 {selectedQuarter === 'all' ? '全年' : `第${selectedQuarter}季度`}</p>
-      </div>
-
-      <div className="flex p-1 bg-muted/50 rounded-xl w-fit border shadow-sm">
-          <button
-            onClick={() => setActiveTab('financial')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'financial' ? 'bg-background shadow-md text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <Wallet className="h-4 w-4" /> 经营财务分析
-          </button>
-          <button
-            onClick={() => setActiveTab('early')}
-            className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'early' ? 'bg-background shadow-md text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            <TrendingUp className="h-4 w-4" /> 前期跟进分析
-          </button>
+    <div className="space-y-6 animate-in fade-in duration-500 pb-10 max-w-[1800px] mx-auto">
+      <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="text-primary h-7 w-7" />
+            <h1 className="text-xl font-black tracking-tight text-gray-800">经营看板</h1>
+            <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">{activeTab === 'financial' ? 'Financial' : 'Pipeline'}</span>
+          </div>
+          <div className="flex p-1 bg-muted rounded-xl border text-[12px] font-bold shadow-sm">
+              <button onClick={() => setActiveTab('financial')} className={`px-5 py-1.5 rounded-lg transition-all ${activeTab === 'financial' ? 'bg-background shadow text-primary' : 'text-muted-foreground'}`}>财务经营</button>
+              <button onClick={() => setActiveTab('early')} className={`px-5 py-1.5 rounded-lg transition-all ${activeTab === 'early' ? 'bg-background shadow text-primary' : 'text-muted-foreground'}`}>前期跟进</button>
+          </div>
       </div>
 
       {activeTab === 'financial' && (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <KPICard title="年度合同总额" value={analytics.totalContract} target={analytics.contractTarget} icon={<FileText className="text-blue-500"/>} color="blue" />
-                <KPICard title="年度收款总额" value={analytics.totalCollected} target={analytics.collectionTarget} icon={<Target className="text-emerald-500"/>} color="emerald" />
-                <div className="col-span-2 rounded-2xl border bg-card p-6 shadow-sm flex items-center justify-between bg-gradient-to-br from-indigo-500/5 to-transparent">
-                    <div>
-                        <p className="text-sm font-medium text-muted-foreground">回款进度 (实际/目标)</p>
-                        <h3 className="text-3xl font-bold mt-1">{(analytics.totalCollected / (analytics.collectionTarget || 1) * 100).toFixed(1)}%</h3>
-                    </div>
-                    <div className="w-1/2 bg-muted h-4 rounded-full overflow-hidden border">
-                        <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-1000" style={{ width: `${Math.min(100, (analytics.totalCollected / (analytics.collectionTarget || 1) * 100))}%` }}></div>
+        <div className="space-y-6">
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                <CompactKPICard title="年度合同总额" value={analytics.totalContract} target={analytics.contractTarget} color="indigo" />
+                <CompactKPICard title="年度收款总额" value={analytics.totalCollected} target={analytics.collectionTarget} color="emerald" />
+                <div className="col-span-2 rounded-xl border bg-card p-4 flex items-center gap-6 shadow-sm border-b-4 border-b-primary/30">
+                    <div className="flex-1">
+                        <div className="flex justify-between text-[10px] font-black uppercase text-gray-400 mb-1"><span>回款目标进度</span><span className="text-primary">{((analytics.totalCollected / (analytics.collectionTarget || 1)) * 100).toFixed(1)}%</span></div>
+                        <div className="h-2.5 bg-muted rounded-full overflow-hidden border"><div className="h-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-1000" style={{ width: `${Math.min(100, (analytics.totalCollected / (analytics.collectionTarget || 1) * 100))}%` }}></div></div>
                     </div>
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-                <ChartBox 
-                    title="合同来源分布 (金额)" 
-                    icon={<PieIcon className="h-4 w-4"/>}
-                    filterValue={localFilters.contractSource}
-                    onFilterChange={(v: string) => updateLocalFilter('contractSource', v)}
-                    filterOptions={options.departments}
-                    filterLabel="按部门"
-                >
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie data={analytics.dataContractSource} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
-                                {analytics.dataContractSource.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v: number) => formatWan(v)} />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </ChartBox>
-
-                <ChartBox 
-                    title="收款来源分布 (金额)" 
-                    icon={<PieIcon className="h-4 w-4"/>}
-                    filterValue={localFilters.collectionSource}
-                    onFilterChange={(v: string) => updateLocalFilter('collectionSource', v)}
-                    filterOptions={options.departments}
-                    filterLabel="按部门"
-                >
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie data={analytics.dataCollectionSource} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
-                                {analytics.dataCollectionSource.map((_, i) => <Cell key={i} fill={COLORS[(i+2) % COLORS.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v: number) => formatWan(v)} />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </ChartBox>
-
-                <ChartBox 
-                    title="项目类型合同额分析" 
-                    icon={<BarChart3 className="h-4 w-4"/>}
-                    filterValue={localFilters.contractType}
-                    onFilterChange={(v: string) => updateLocalFilter('contractType', v)}
-                    filterOptions={options.regions}
-                    filterLabel="按地区"
-                >
-                    <ResponsiveContainer width="100%" height={350}>
-                        <BarChart data={analytics.dataContractByType} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                            <XAxis type="number" tickFormatter={(v) => `${v/10000}w`} />
-                            <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
-                            <Tooltip formatter={(v: number) => formatWan(v)} />
-                            <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartBox>
-
-                <ChartBox 
-                    title="项目类型收款额分析" 
-                    icon={<BarChart3 className="h-4 w-4"/>}
-                    filterValue={localFilters.collectionType}
-                    onFilterChange={(v: string) => updateLocalFilter('collectionType', v)}
-                    filterOptions={options.regions}
-                    filterLabel="按地区"
-                >
-                    <ResponsiveContainer width="100%" height={350}>
-                        <BarChart data={analytics.dataCollectionByType} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                            <XAxis type="number" tickFormatter={(v) => `${v/10000}w`} />
-                            <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
-                            <Tooltip formatter={(v: number) => formatWan(v)} />
-                            <Bar dataKey="value" fill="#10b981" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartBox>
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-3">
+                {[
+                    {k: 'contractSource', t: '合同来源分布', f: ['department', 'region']},
+                    {k: 'collectionSource', t: '收款来源分布', f: ['department', 'region']},
+                    {k: 'contractType', t: '合同类别排行', f: ['department', 'region']},
+                    {k: 'collectionType', t: '收款类别排行', f: ['department', 'region']},
+                    {k: 'regional', t: '地区业务对比', f: ['department', 'category']},
+                ].map(c => (
+                    <ChartCard key={c.k} title={c.t} icon={<PieIcon className="h-3.5 w-3.5"/>} fields={c.f} filters={localFilters[c.k]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(c.k,f,v)} isOpen={openFilterKey===c.k} onOpen={()=>setOpenFilterKey(openFilterKey===c.k?null:c.k)} onZoom={()=>setZoomedChart({key: c.k, title: c.t})}>
+                        {renderChartContent(c.k)}
+                    </ChartCard>
+                ))}
             </div>
-
-            <ChartBox 
-                title="各地区项目情况 (合同 vs 收款)" 
-                icon={<Building className="h-4 w-4"/>}
-                filterValue={localFilters.regional}
-                onFilterChange={(v: string) => updateLocalFilter('regional', v)}
-                filterOptions={options.departments}
-                filterLabel="按部门"
-            >
-                <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={analytics.dataRegionalContract}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" tick={{fontSize: 11}} />
-                        <YAxis tickFormatter={(v) => `${v/10000}w`} />
-                        <Tooltip formatter={(v: number) => formatWan(v)} />
-                        <Legend />
-                        <Bar dataKey="value" name="合同金额" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                        <Bar data={analytics.dataRegionalCollection} dataKey="value" name="已收金额" fill="#f43f5e" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </ChartBox>
         </div>
       )}
 
       {activeTab === 'early' && (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="rounded-2xl border bg-gradient-to-r from-primary/10 to-purple-500/10 p-8 shadow-sm flex items-center justify-between">
-                <div className="flex items-center gap-6">
-                    <div className="p-4 bg-primary/20 rounded-2xl">
-                        <TrendingUp className="h-10 w-10 text-primary" />
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-bold">前期跟进合同总额预估</h3>
-                        <p className="text-sm text-muted-foreground mt-1">基于当前所有前期项目的预估合同额累计</p>
-                    </div>
-                </div>
-                <div className="text-right">
-                    <span className="text-5xl font-black text-primary">{formatWan(analytics.earlyTotalEstimate)}</span>
+        <div className="space-y-6">
+            <div className="rounded-xl border bg-card p-5 shadow-sm bg-gradient-to-r from-primary/5 to-transparent flex items-center justify-between border-l-4 border-l-primary">
+                <div className="flex items-center gap-4">
+                    <div className="p-2.5 bg-primary/10 rounded-lg text-primary shadow-inner"><TrendingUp className="h-5 w-5"/></div>
+                    <div><p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">前期预估总额</p><h2 className="text-2xl font-black text-primary tracking-tighter">{formatWan(analytics.earlyTotal)}</h2></div>
                 </div>
             </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-                <ChartBox 
-                    title="前期项目来源分析" 
-                    icon={<PieIcon className="h-4 w-4"/>}
-                    filterValue={localFilters.earlySource}
-                    onFilterChange={(v: string) => updateLocalFilter('earlySource', v)}
-                    filterOptions={options.regions}
-                    filterLabel="按地区"
-                >
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie data={analytics.dataEarlySource} cx="50%" cy="50%" outerRadius={80} label dataKey="value">
-                                {analytics.dataEarlySource.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </ChartBox>
-
-                <ChartBox 
-                    title="项目可能性分布" 
-                    icon={<Target className="h-4 w-4"/>}
-                    filterValue={localFilters.earlyProbability}
-                    onFilterChange={(v: string) => updateLocalFilter('earlyProbability', v)}
-                    filterOptions={options.sources}
-                    filterLabel="按来源"
-                >
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={analytics.dataEarlyProb}>
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip />
-                            <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={40} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartBox>
-
-                <ChartBox 
-                    title="预计签约年份金额分析" 
-                    icon={<Calendar className="h-4 w-4"/>}
-                    filterValue={localFilters.earlyYear}
-                    onFilterChange={(v: string) => updateLocalFilter('earlyYear', v)}
-                    filterOptions={options.departments}
-                    filterLabel="按部门"
-                >
-                    <ResponsiveContainer width="100%" height={300}>
-                        <ComposedChart data={analytics.dataEarlyYear}>
-                            <XAxis dataKey="name" />
-                            <YAxis tickFormatter={(v) => `${v/10000}w`} />
-                            <Tooltip formatter={(v: number) => formatWan(v)} />
-                            <Area type="monotone" dataKey="value" fill="#8884d8" stroke="#8884d8" fillOpacity={0.1} />
-                            <Bar dataKey="value" fill="#6366f1" barSize={30} radius={[4, 4, 0, 0]} />
-                        </ComposedChart>
-                    </ResponsiveContainer>
-                </ChartBox>
-
-                <ChartBox 
-                    title="前期项目类型分布" 
-                    icon={<PieIcon className="h-4 w-4"/>}
-                    filterValue={localFilters.earlyType}
-                    onFilterChange={(v: string) => updateLocalFilter('earlyType', v)}
-                    filterOptions={options.departments}
-                    filterLabel="按部门"
-                >
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie data={analytics.dataEarlyType} cx="50%" cy="50%" innerRadius={60} outerRadius={80} dataKey="value" label>
-                                {analytics.dataEarlyType.map((_, i) => <Cell key={i} fill={COLORS[(i+4) % COLORS.length]} />)}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </ChartBox>
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-3">
+                {[
+                    {k: 'earlySource', t: '前期来源分析', f: ['region', 'department']},
+                    {k: 'earlyProbability', t: '项目可能性分布', f: ['source', 'department']},
+                    {k: 'earlyYear', t: '签约年份预估', f: ['department', 'region']},
+                    {k: 'earlyType', t: '前期类型分布', f: ['department', 'region']},
+                ].map(c => (
+                    <ChartCard key={c.k} title={c.t} icon={<Calendar className="h-3.5 w-3.5"/>} fields={c.f} filters={localFilters[c.k]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(c.k,f,v)} isOpen={openFilterKey===c.k} onOpen={()=>setOpenFilterKey(openFilterKey===c.k?null:c.k)} onZoom={()=>setZoomedChart({key: c.k, title: c.t})}>
+                        {renderChartContent(c.k)}
+                    </ChartCard>
+                ))}
             </div>
         </div>
+      )}
+
+      {/* Zoom Modal */}
+      {zoomedChart && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-xl p-8 animate-in fade-in duration-300">
+              <div className="bg-background w-full max-w-5xl rounded-3xl shadow-2xl border flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                  <div className="p-6 border-b flex justify-between items-center bg-muted/30">
+                      <div className="flex items-center gap-3">
+                          <BarChart3 className="text-primary h-6 w-6" />
+                          <h3 className="text-xl font-black tracking-tight">{zoomedChart.title} - 深度查看</h3>
+                      </div>
+                      <button onClick={() => setZoomedChart(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X className="h-6 w-6 text-gray-400"/></button>
+                  </div>
+                  <div className="p-10 flex-1 flex items-center justify-center bg-white">
+                      {renderChartContent(zoomedChart.key, true)}
+                  </div>
+                  <div className="p-4 bg-muted/20 border-t text-center">
+                      <p className="text-xs text-muted-foreground font-medium">提示：全屏模式下展示详细标签和更精准的比例。点击右上角关闭返回看板。</p>
+                  </div>
+              </div>
+          </div>
       )}
     </div>
   );
 };
 
-const KPICard = ({ title, value, target, icon, color }: any) => (
-    <div className={`rounded-2xl border bg-card p-6 shadow-sm border-l-4 ${color === 'blue' ? 'border-l-blue-500' : 'border-l-emerald-500'} hover:shadow-md transition-shadow`}>
-        <div className="flex justify-between items-start">
-            <div>
-                <p className="text-sm font-medium text-muted-foreground">{title}</p>
-                <h3 className="text-2xl font-bold mt-2">¥{(value / 10000).toFixed(0)}w</h3>
-            </div>
-            <div className="p-2 bg-muted rounded-lg">{icon}</div>
-        </div>
-        <div className="mt-4 flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">目标: ¥{(target / 10000).toFixed(0)}w</span>
-            <span className={value >= target ? 'text-emerald-600 font-bold' : 'text-orange-600 font-bold'}>
-                {((value / (target || 1)) * 100).toFixed(0)}%
-            </span>
+const CompactKPICard = ({ title, value, target, color }: any) => (
+    <div className={`rounded-xl border bg-card p-4 shadow-sm hover:shadow-md transition-all border-t-4 ${color === 'indigo' ? 'border-t-indigo-500' : 'border-t-emerald-500'}`}>
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
+        <h3 className={`text-xl font-black ${color === 'indigo' ? 'text-indigo-700' : 'text-emerald-700'} tracking-tight`}>¥{(value / 10000).toFixed(0)}w</h3>
+        <div className="flex justify-between items-center mt-3 pt-2 border-t border-dashed">
+            <span className="text-[9px] text-gray-400 font-medium">目标: {(target / 10000).toFixed(0)}w</span>
+            <span className={`text-[11px] font-black ${value >= target ? 'text-emerald-600' : 'text-orange-500'}`}>{((value / (target || 1)) * 100).toFixed(0)}%</span>
         </div>
     </div>
 );
 
-const ChartBox = ({ title, icon, children, filterValue, onFilterChange, filterOptions, filterLabel }: any) => (
-    <div className="rounded-2xl border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex items-center justify-between mb-6 border-b pb-4">
-            <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-primary/10 rounded-md text-primary">{icon}</div>
-                <h3 className="font-bold text-sm tracking-tight">{title}</h3>
+const ChartCard = ({ title, icon, children, fields, filters, options, labels, onToggle, isOpen, onOpen, onZoom }: any) => {
+    const activeCount = Object.values(filters).flat().length;
+    return (
+        <div className="rounded-xl border bg-card shadow-sm flex flex-col relative group hover:ring-1 ring-primary/20 transition-all">
+            <div className="p-3 pb-2 flex items-center justify-between border-b bg-muted/5">
+                <div className="flex items-center gap-2">
+                    <div className="p-1 bg-primary/10 rounded text-primary">{icon}</div>
+                    <h3 className="font-bold text-[13px] tracking-tight text-gray-700">{title}</h3>
+                </div>
+                <div className="flex items-center gap-1">
+                    <button onClick={onZoom} className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-primary transition-colors" title="放大查看"><Maximize2 className="h-3.5 w-3.5"/></button>
+                    <button onClick={onOpen} className={`p-1.5 rounded-md border transition-all ${activeCount > 0 ? 'bg-primary text-white border-primary' : 'bg-white text-gray-400 border-gray-200 hover:border-primary hover:text-primary'}`}>
+                        <Filter className="h-3.5 w-3.5" />
+                    </button>
+                </div>
             </div>
-            
-            {/* Local Filter UI */}
-            <div className="flex items-center gap-2 bg-muted/50 px-2 py-1 rounded-lg border">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">{filterLabel}:</span>
-                <select 
-                    value={filterValue} 
-                    onChange={(e) => onFilterChange(e.target.value)}
-                    className="bg-transparent text-xs font-bold focus:outline-none cursor-pointer max-w-[100px] truncate"
-                >
-                    <option value="all">全部</option>
-                    {filterOptions?.map((opt: string) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                </select>
-            </div>
+            {isOpen && (
+                <div className="absolute top-12 right-2 left-2 z-[50] bg-white border rounded-xl shadow-2xl p-4 space-y-4 animate-in zoom-in-95 duration-200 ring-1 ring-black/5">
+                    <div className="flex justify-between items-center border-b pb-2">
+                        <span className="text-[10px] font-black text-primary uppercase tracking-widest">高级过滤</span>
+                        <button onClick={onOpen}><X className="h-3.5 w-3.5 text-gray-400"/></button>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+                        {fields.map((f: string) => (
+                            <div key={f} className="space-y-2">
+                                <p className="text-[9px] font-black text-gray-400 uppercase">{labels[f]}</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {options[f]?.map((v: string) => {
+                                        const sel = (filters[f] || []).includes(v);
+                                        return (
+                                            <button key={v} onClick={() => onToggle(f, v)} className={`px-2 py-0.5 rounded-md text-[9px] font-bold border flex items-center gap-1 transition-all ${sel ? 'bg-primary text-white border-primary shadow-sm' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-primary'}`}>
+                                                {sel ? <CheckSquare className="h-2.5 w-2.5" /> : <Square className="h-2.5 w-2.5" />}
+                                                {v}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <div className="p-4 flex-1 relative overflow-hidden">{children}</div>
         </div>
-        {children}
-    </div>
-);
+    );
+};
 
 export default Dashboard;
