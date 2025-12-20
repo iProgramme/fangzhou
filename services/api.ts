@@ -130,6 +130,12 @@ export const login = async (username: string, password: string): Promise<User> =
     return res.json();
 };
 
+export const fetchThemeCSS = async (id: string): Promise<string> => {
+    const res = await fetch(`${API_BASE}/themes/${id}`);
+    if (!res.ok) throw new Error('获取主题失败');
+    return res.text();
+};
+
 export const updateDictionary = async (key: string, items: DictItem[]): Promise<any> => {
     const res = await fetch(`${API_BASE}/dictionaries`, {
         method: 'POST',

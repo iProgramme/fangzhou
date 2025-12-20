@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson, Monitor, ExternalLink } from 'lucide-react';
 import { User, Department, OperationLog, SystemDictionary, DictItem, Project } from '../types';
 import { TAG_COLORS } from '../services/mockData';
-import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects, createProject, updateProject } from '../services/api';
+import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects, createProject, updateProject, fetchThemeCSS } from '../services/api';
 
 interface SettingsProps {
     users: User[];
+    currentUser: User | null; // Added
     onRefreshUsers: () => void;
     logs: OperationLog[];
     dictionaries: SystemDictionary;
@@ -14,8 +15,9 @@ interface SettingsProps {
     onUpdateThemeCode: (code: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictionaries, onUpdateDictionary, currentThemeCode, onUpdateThemeCode }) => {
-    const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict' | 'appearance'>('users');
+const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers, logs, dictionaries, onUpdateDictionary, currentThemeCode, onUpdateThemeCode }) => {
+    const isAdmin = currentUser?.role === 'admin';
+    const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict' | 'appearance'>(isAdmin ? 'users' : 'appearance');
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<Partial<User>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,8 +39,7 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
             return;
         }
         try {
-            const res = await fetch(`/styles/${id}.css`);
-            const css = await res.text();
+            const css = await fetchThemeCSS(id);
             onUpdateThemeCode(css);
             showToast(`主题 ${id} 已应用`);
         } catch (e) {
@@ -222,36 +223,42 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
 
             {/* Settings Navigation */}
             <div className="flex space-x-2 border-b">
-                <button 
-                    onClick={() => setActiveTab('users')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                >
-                    <Shield className="h-4 w-4"/> 用户与权限
-                </button>
-                <button 
-                    onClick={() => setActiveTab('dict')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'dict' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                >
-                    <BookOpen className="h-4 w-4"/> 字典管理
-                </button>
-                 <button 
-                    onClick={() => setActiveTab('logs')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'logs' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                >
-                    <List className="h-4 w-4"/> 操作日志
-                </button>
+                {isAdmin && (
+                    <>
+                        <button 
+                            onClick={() => setActiveTab('users')}
+                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                        >
+                            <Shield className="h-4 w-4"/> 用户与权限
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('dict')}
+                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'dict' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                        >
+                            <BookOpen className="h-4 w-4"/> 字典管理
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('logs')}
+                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'logs' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                        >
+                            <List className="h-4 w-4"/> 操作日志
+                        </button>
+                    </>
+                )}
                 <button 
                     onClick={() => setActiveTab('appearance')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'appearance' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                 >
                     <Palette className="h-4 w-4"/> 个性化
                 </button>
-                <button 
-                    onClick={() => setActiveTab('system')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'system' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-                >
-                    <Database className="h-4 w-4"/> 数据运维
-                </button>
+                {isAdmin && (
+                    <button 
+                        onClick={() => setActiveTab('system')}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'system' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                    >
+                        <Database className="h-4 w-4"/> 数据运维
+                    </button>
+                )}
             </div>
 
             {/* TAB: User Management */}

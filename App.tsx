@@ -74,6 +74,8 @@ const App: React.FC = () => {
       document.head.appendChild(styleTag);
     }
     styleTag.innerHTML = currentThemeCode;
+    // Move to end of head to ensure highest priority
+    document.head.appendChild(styleTag);
     localStorage.setItem('appearance_theme_code', currentThemeCode);
   }, [currentThemeCode]);
 
@@ -429,6 +431,7 @@ const App: React.FC = () => {
         return (
             <Settings 
                 users={users} 
+                currentUser={currentUser}
                 onRefreshUsers={refreshUsers}
                 logs={logs}
                 dictionaries={dictionaries}
@@ -479,149 +482,295 @@ const App: React.FC = () => {
         
         
         
-                  <div className="flex flex-1 flex-col overflow-hidden">
+                            <div className="flex flex-1 flex-col overflow-hidden bg-background">
         
-                      <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
         
-                          <button onClick={() => setSidebarOpen(true)}>
         
-                              <Menu className="h-6 w-6" />
+                                <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
         
-                          </button>
         
-                          <span className="font-semibold">项目管理系统</span>
         
-                      </header>
+                                    <button onClick={() => setSidebarOpen(true)}>
         
         
         
-                      <main className="flex-1 overflow-y-auto p-6 md:p-12">
+                                        <Menu className="h-6 w-6" />
         
-                          {/* Global Year Selector */}
         
-                          {currentPath !== '/settings' && currentPath !== '/login' && (
         
-                              <div className="flex items-center justify-between mb-8 border-b pb-4">
+                                    </button>
         
-                                  <div>
         
-                                      <h2 className="text-xl font-semibold">
         
-                                          {currentPath === '/' ? '数据总览' : 
+                                    <span className="font-semibold">项目管理系统</span>
         
-                                           currentPath.startsWith('/groups/') ? '项目组管理' : '项目周期'}
         
-                                      </h2>
         
-                                      <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
+                                </header>
         
-                                  </div>
         
-                                  <div className="flex items-center gap-4">
         
-                                      <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+                  
         
-                                          <Calendar className="h-4 w-4 text-primary" />
         
-                                          <span className="text-sm font-medium">年份:</span>
         
-                                          <select 
+                                <main className="flex-1 overflow-y-auto p-6 md:p-12 bg-background">
         
-                                              value={selectedYear} 
         
-                                              onChange={(e) => setSelectedYear(Number(e.target.value))}
         
-                                              className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+                                    {/* Global Year Selector */}
         
-                                          >
         
-                                              {availableYears.map(year => (
         
-                                                  <option key={year} value={year}>{year}</option>
+                                    {currentPath !== '/settings' && currentPath !== '/login' && (
         
-                                              ))}
         
-                                          </select>
         
-                                      </div>
+                                        <div className="flex items-center justify-between mb-8 border-b pb-4">
         
-                                      <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
         
-                                          <span className="text-sm font-medium text-muted-foreground">|</span>
         
-                                          <span className="text-sm font-medium ml-2">季度:</span>
+                                            <div>
         
-                                          <select 
         
-                                              value={selectedQuarter} 
         
-                                              onChange={(e) => setSelectedQuarter(e.target.value)}
+                                                <h2 className="text-xl font-semibold">
         
-                                              className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
         
-                                          >
         
-                                              <option value="all">全年</option>
+                                                    {currentPath === '/' ? '数据总览' : 
         
-                                              <option value="1">第一季度</option>
         
-                                              <option value="2">第二季度</option>
         
-                                              <option value="3">第三季度</option>
+                                                     currentPath.startsWith('/groups/') ? '项目组管理' : '项目周期'}
         
-                                              <option value="4">第四季度</option>
         
-                                          </select>
         
-                                      </div>
+                                                </h2>
         
-                                  </div>
         
-                              </div>
         
-                          )}
+                                                <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
         
         
         
-                          {(() => {
+                                            </div>
         
-                              if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
         
         
+                                            <div className="flex items-center gap-4">
         
-                              // Access Control Logic
         
-                              if (currentPath === '/settings' && currentUser?.role !== 'admin') {
         
-                                  return <div className="p-10 text-center text-red-500">您没有权限访问此页面</div>;
+                                                <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
         
-                              }
         
-                              
         
-                              if (currentPath.startsWith('/groups/')) {
+                                                    <Calendar className="h-4 w-4 text-primary" />
         
-                                  const slug = currentPath.split('/groups/')[1];
         
-                                  const department = DEPARTMENT_SLUGS[slug];
         
-                                  if (currentUser?.role !== 'admin' && currentUser?.department !== department) {
+                                                    <span className="text-sm font-medium">年份:</span>
         
-                                      return <div className="p-10 text-center text-red-500">您没有权限访问其他部门的项目</div>;
         
-                                  }
         
-                              }
+                                                    <select 
         
         
         
-                              return renderContent();
+                                                        value={selectedYear} 
         
-                          })()}
         
-                      </main>
         
-                  </div>
+                                                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+        
+        
+        
+                                                        className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+        
+        
+        
+                                                    >
+        
+        
+        
+                                                        {availableYears.map(year => (
+        
+        
+        
+                                                            <option key={year} value={year}>{year}</option>
+        
+        
+        
+                                                        ))}
+        
+        
+        
+                                                    </select>
+        
+        
+        
+                                                </div>
+        
+        
+        
+                                                <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+        
+        
+        
+                                                    <span className="text-sm font-medium text-muted-foreground">|</span>
+        
+        
+        
+                                                    <span className="text-sm font-medium ml-2">季度:</span>
+        
+        
+        
+                                                    <select 
+        
+        
+        
+                                                        value={selectedQuarter} 
+        
+        
+        
+                                                        onChange={(e) => setSelectedQuarter(e.target.value)}
+        
+        
+        
+                                                        className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+        
+        
+        
+                                                    >
+        
+        
+        
+                                                        <option value="all">全年</option>
+        
+        
+        
+                                                        <option value="1">第一季度</option>
+        
+        
+        
+                                                        <option value="2">第二季度</option>
+        
+        
+        
+                                                        <option value="3">第三季度</option>
+        
+        
+        
+                                                        <option value="4">第四季度</option>
+        
+        
+        
+                                                    </select>
+        
+        
+        
+                                                </div>
+        
+        
+        
+                                            </div>
+        
+        
+        
+                                        </div>
+        
+        
+        
+                                    )}
+        
+        
+        
+                  
+        
+        
+        
+                                    {(() => {
+        
+        
+        
+                                        if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
+        
+        
+        
+                  
+        
+        
+        
+                                        // Access Control Logic - Appearance is now public
+        
+        
+        
+                                        if (currentPath === '/settings') {
+        
+        
+        
+                                            // Everyone can access settings now (component will handle internal tab filtering)
+        
+        
+        
+                                            return renderContent();
+        
+        
+        
+                                        }
+        
+        
+        
+                                        
+        
+        
+        
+                                        if (currentPath.startsWith('/groups/')) {
+        
+        
+        
+                                            const slug = currentPath.split('/groups/')[1];
+        
+        
+        
+                                            const department = DEPARTMENT_SLUGS[slug];
+        
+        
+        
+                                            if (currentUser?.role !== 'admin' && currentUser?.department !== department) {
+        
+        
+        
+                                                return <div className="p-10 text-center text-red-500">您没有权限访问其他部门的项目</div>;
+        
+        
+        
+                                            }
+        
+        
+        
+                                        }
+        
+        
+        
+                  
+        
+        
+        
+                                        return renderContent();
+        
+        
+        
+                                    })()}
+        
+        
+        
+                                </main>
+        
+        
+        
+                            </div>
         
                 </div>
 

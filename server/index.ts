@@ -6,14 +6,51 @@ import { db } from '../db';
 import { projects, users, operationLogs, systemDictionaries } from '../db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config({ path: '.env.local' });
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// --- Theme API ---
+app.get('/api/themes/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        // Try multiple potential paths to be robust
+        const pathsToTry = [
+            path.join(__dirname, '..', 'styles', `${id}.css`),
+            path.join(process.cwd(), 'styles', `${id}.css`),
+            path.join(process.cwd(), 'fangzhou', 'styles', `${id}.css`)
+        ];
+
+        let css = null;
+        for (const p of pathsToTry) {
+            try {
+                css = await fs.readFile(p, 'utf-8');
+                if (css) break;
+            } catch (e) { /* continue */ }
+        }
+
+        if (css) {
+            res.send(css);
+        } else {
+            console.error(`Theme not found: ${id}. Checked paths:`, pathsToTry);
+            res.status(404).send('Theme file not found on server');
+        }
+    } catch (e) {
+        console.error('Theme API Error:', e);
+        res.status(500).send('Internal server error while fetching theme');
+    }
+});
 
 // --- 映射定义 (英文参数 -> 数据库中文值) ---
 const STAGE_MAPPING: Record<string, string> = {

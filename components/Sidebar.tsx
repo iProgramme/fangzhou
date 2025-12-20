@@ -58,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
         { name: '城市更新组（利）', path: '/groups/renewal' },
       ]
     },
-    { name: '系统设置', icon: Settings, path: '/settings' },
+    { name: '系统与个性化', icon: Settings, path: '/settings' },
   ];
 
   const filteredMenuStructure = menuStructure.filter(item => {
@@ -70,8 +70,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
     // 2. Project Cycle only for admin
     if (item.name === '项目周期') return isAdmin;
 
-    // 3. System Settings only for admin
-    if (item.path === '/settings') return isAdmin;
+    // 3. System Settings is now visible to everyone (for Appearance)
+    if (item.path === '/settings') return true;
 
     // 4. Group filtering for users
     if (item.name === '各项目组') {
