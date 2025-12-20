@@ -22,6 +22,7 @@ interface ProjectTableProps {
   selectedYear: number;
   availableYears: number[];
   onSelectYear: (year: number) => void;
+  confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void;
 }
 
 const formatMoney = (val: any) => val ? `¥${Number(val).toLocaleString()}` : '-';
@@ -37,7 +38,8 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
     showAddButton,
     selectedYear,
     availableYears,
-    onSelectYear
+    onSelectYear,
+    confirmCustom
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
@@ -134,9 +136,12 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   };
 
   const handleDelete = (id: string) => {
-      if (window.confirm('确认删除该项目吗？此操作将记录在系统日志中。')) {
-          if (onDeleteProject) onDeleteProject(id);
-      }
+      confirmCustom(
+          '确认删除',
+          '您确定要删除该项目吗？此操作将记录在系统日志中且不可撤销。',
+          () => { if (onDeleteProject) onDeleteProject(id); },
+          true
+      );
   };
 
   const handleSubmit = (e: React.FormEvent) => {

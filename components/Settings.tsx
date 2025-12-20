@@ -13,9 +13,10 @@ interface SettingsProps {
     onUpdateDictionary: (key: string, values: DictItem[]) => void;
     currentThemeCode: string;
     onUpdateThemeCode: (code: string) => void;
+    confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers, logs, dictionaries, onUpdateDictionary, currentThemeCode, onUpdateThemeCode }) => {
+const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers, logs, dictionaries, onUpdateDictionary, currentThemeCode, onUpdateThemeCode, confirmCustom }) => {
     const isAdmin = currentUser?.role === 'admin';
     const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict' | 'appearance'>(isAdmin ? 'users' : 'appearance');
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -98,39 +99,40 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
         reader.onload = async (event) => {
             try {
                 const importedData = JSON.parse(event.target?.result as string);
-                const modeLabel = importTab === 'add' ? '【增量新增】' : '【全量覆盖】';
+                const modeText = importTabMode === 'add' ? '【增量新增】' : '【全量覆盖】';
                 
-                if (window.confirm(`确定执行 ${modeLabel} 模式导入 ${type} 数据吗？\n${importTab === 'overwrite' ? '警告：此操作将尝试覆盖/替换现有数据！' : '注意：增量模式下将跳过已存在的数据。'}`)) {
-                    setIsSubmitting(true);
-                    
-                    if (type === 'dictionaries') {
-                        for (const [key, items] of Object.entries(importedData)) {
-                            let finalItems = items as DictItem[];
-                            if (importTab === 'add') {
-                                const existing = dictionaries[key] || [];
-                                const existingLabels = new Set(existing.map(i => i.label));
-                                finalItems = [...existing, ...finalItems.filter(i => !existingLabels.has(i.label))];
+                confirmCustom(
+                    `确认导入 - ${modeText}`,
+                    `您确定要使用 ${modeText} 模式导入 ${type} 数据吗？${importTabMode === 'overwrite' ? '警告：此操作将尝试覆盖/替换现有冲突数据！建议先执行导出备份。' : '注意：增量模式下将跳过已存在的数据。'} `,
+                    async () => {
+                        setIsSubmitting(true);
+                        
+                        if (type === 'dictionaries') {
+                            for (const [key, items] of Object.entries(importedData)) {
+                                let finalItems = items as DictItem[];
+                                if (importTabMode === 'add') {
+                                    const current = dictionaries[key] || [];
+                                    const existingLabels = new Set(current.map(i => i.label));
+                                    finalItems = [...current, ...finalItems.filter(i => !existingLabels.has(i.label))];
+                                }
+                                await onUpdateDictionary(key, finalItems);
                             }
-                            await onUpdateDictionary(key, finalItems);
+                        } else if (type === 'users') {
+                            for (const user of (importedData as User[])) {
+                                if (user.id) await updateUser(user);
+                                else await createUser(user);
+                            }
+                            onRefreshUsers();
+                        } else if (type === 'projects') {
+                            for (const proj of (importedData as Project[])) {
+                                if (proj.id && importTabMode === 'overwrite') await updateProject(proj);
+                                else await createProject(proj);
+                            }
                         }
-                    } else if (type === 'users') {
-                        for (const user of (importedData as User[])) {
-                            // If add mode and user exists, skip or if overwrite, update. 
-                            // Simplified: use updateUser for existing IDs, createUser for new ones.
-                            if (user.id) await updateUser(user);
-                            else await createUser(user);
-                        }
-                        onRefreshUsers();
-                    } else if (type === 'projects') {
-                        // Projects need bulk support or loop
-                        for (const proj of (importedData as Project[])) {
-                            if (proj.id && importTab === 'overwrite') await updateProject(proj);
-                            else await createProject(proj);
-                        }
-                        showToast('项目导入已提交');
-                    }
-                    showToast(`${modeLabel} 导入成功`);
-                }
+                        showToast(`${modeText} 导入成功`);
+                    },
+                    importTabMode === 'overwrite'
+                );
             } catch (err) {
                 showToast('解析文件失败，请确保格式正确', 'error');
             } finally {
@@ -158,18 +160,23 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
     };
 
     const handleDeleteUser = async (id: string) => {
-        if (window.confirm('确定要删除该用户吗？此操作不可恢复。')) {
-            try {
-                setIsSubmitting(true);
-                await deleteUserApi(id);
-                onRefreshUsers();
-                showToast('用户已删除');
-            } catch (e) {
-                showToast('删除失败', 'error');
-            } finally {
-                setIsSubmitting(false);
-            }
-        }
+        confirmCustom(
+            '删除用户',
+            '您确定要删除该用户吗？此操作不可恢复。',
+            async () => {
+                try {
+                    setIsSubmitting(true);
+                    await deleteUserApi(id);
+                    onRefreshUsers();
+                    showToast('用户已删除');
+                } catch (e) {
+                    showToast('删除失败', 'error');
+                } finally {
+                    setIsSubmitting(false);
+                }
+            },
+            true
+        );
     };
 
     const handleSaveUser = async (e: React.FormEvent) => {
@@ -211,10 +218,15 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
     };
 
     const handleDeleteDictValue = (item: DictItem) => {
-        if (window.confirm(`确定删除选项 "${item.label}" 吗？此操作将影响后续数据录入。`)) {
-            const currentValues = dictionaries[selectedDictKey] || [];
-            onUpdateDictionary(selectedDictKey, currentValues.filter(v => v.label !== item.label));
-        }
+        confirmCustom(
+            '删除选项',
+            `确定删除选项 "${item.label}" 吗？此操作将影响后续数据录入。`,
+            () => {
+                const currentValues = dictionaries[selectedDictKey] || [];
+                onUpdateDictionary(selectedDictKey, currentValues.filter(v => v.label !== item.label));
+            },
+            true
+        );
     };
 
     return (

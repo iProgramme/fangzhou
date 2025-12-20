@@ -10,23 +10,25 @@ interface GroupProjectManagerProps {
     onAddProject: (data: Partial<Project>) => void;
     onEditProject: (project: Project) => void;
     onDeleteProject: (id: string) => void;
-    selectedYear: number;
-    availableYears: number[];
-    onSelectYear: (year: number) => void;
-}
-
-const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({ 
-    department, 
-    projects, 
-    dictionaries,
-    onAddProject, 
-    onEditProject, 
-    onDeleteProject,
-    selectedYear,
-    availableYears,
-    onSelectYear
-}) => {
-    const [activeTab, setActiveTab] = useState<string>('progress'); // Default to Progress
+        selectedYear: number;
+        availableYears: number[];
+        onSelectYear: (year: number) => void;
+        selectedQuarter: string;
+        confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void;
+    }
+    
+    const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
+        department,
+        projects,
+        dictionaries,
+        onAddProject,
+        onEditProject,
+        onDeleteProject,
+        selectedYear,
+        availableYears,
+        onSelectYear,
+        confirmCustom
+    }) => {    const [activeTab, setActiveTab] = useState<string>('progress'); // Default to Progress
 
     const getFilteredData = () => {
         switch (activeTab) {
@@ -97,6 +99,7 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
                 selectedYear={selectedYear}
                 availableYears={availableYears}
                 onSelectYear={onSelectYear}
+                confirmCustom={confirmCustom}
             />
         </div>
     );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Calendar, Lock, X as XIcon } from 'lucide-react';
+import { Menu, Calendar, Lock, X as XIcon, CheckCircle, AlertCircle, HelpCircle } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import ProjectTable from './components/ProjectTable';
@@ -55,6 +55,24 @@ const App: React.FC = () => {
     return localStorage.getItem('appearance_theme_code') || '';
   });
 
+  // Dialog State
+  const [dialog, setDialog] = useState<{ 
+      isOpen: boolean; 
+      title: string; 
+      message: string; 
+      onConfirm?: () => void; 
+      isDestructive?: boolean;
+      type: 'alert' | 'confirm' 
+  } | null>(null);
+
+  const confirmCustom = (title: string, message: string, onConfirm: () => void, isDestructive = false) => {
+      setDialog({ isOpen: true, title, message, onConfirm, isDestructive, type: 'confirm' });
+  };
+
+  const alertCustom = (title: string, message: string) => {
+      setDialog({ isOpen: true, title, message, type: 'alert' });
+  };
+
   // Apply Dark Mode
   useEffect(() => {
     if (isDarkMode) {
@@ -74,7 +92,6 @@ const App: React.FC = () => {
       document.head.appendChild(styleTag);
     }
     styleTag.innerHTML = currentThemeCode;
-    // Move to end of head to ensure highest priority
     document.head.appendChild(styleTag);
     localStorage.setItem('appearance_theme_code', currentThemeCode);
   }, [currentThemeCode]);
@@ -95,23 +112,19 @@ const App: React.FC = () => {
 
   // Function to handle login
   const handleLogin = (username: string, department?: string, role?: string) => {
-    // Determine display name based on role
     const displayName = role === 'admin' ? '超级管理员' : username;
-
     const mockUser: User = {
-      id: username, // Using username as ID for legacy compatibility in state
+      id: username, 
       name: displayName,
       role: (role || 'user') as 'admin' | 'user' | 'manager',
       department: department as any,
       status: 'active',
     };
-
     setIsLoggedIn(true);
     setCurrentUser(mockUser);
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(mockUser));
-    // Redirect to home or previous path after login if needed
-    if (currentPath === '/login' || currentPath === '/') { // If on login page or root, navigate to dashboard
+    if (currentPath === '/login' || currentPath === '/') {
       setCurrentPath('/'); 
       window.location.hash = '/';
     }
@@ -120,69 +133,47 @@ const App: React.FC = () => {
   const handleUpdatePassword = async () => {
       if (!newPassword.trim()) return;
       if (!currentUser) return;
-
       try {
-          // Find user by ID or Name (handling the 'Super Admin' display name mapping)
-          const fullUser = users.find(u => 
-            u.id === currentUser.id || 
-            u.name === currentUser.name || 
-            (currentUser.role === 'admin' && u.name === 'admin')
-          );
-
+          const fullUser = users.find(u => u.id === currentUser.id || u.name === currentUser.name || (currentUser.role === 'admin' && u.name === 'admin'));
           if (fullUser) {
               await updateUser({ ...fullUser, password: newPassword });
-              alert('密码修改成功，请使用新密码重新登录');
+              alertCustom('修改成功', '密码修改成功，请使用新密码重新登录');
               handleLogout();
-          } else if (currentUser.role === 'admin' && currentUser.name === '超级管理员') {
-              // Fallback for hardcoded admin if not in DB list yet
-              alert('当前超级管理员账号尚未在数据库中注册，请先在“系统设置”中添加 admin 账号。');
           } else {
-              alert('未找到用户记录，请联系系统维护员。');
+              alertCustom('更新失败', '未找到用户记录，请联系超级管理员');
           }
       } catch (e) {
-          alert('修改失败');
+          alertCustom('错误', '修改密码失败');
       }
       setIsPwdModalOpen(false);
       setNewPassword('');
   };
 
-  // Function to handle logout
   const handleLogout = () => {
     setIsLoggedIn(false);
     setCurrentUser(null);
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('currentUser');
-    // Redirect to login page
     setCurrentPath('/login');
     window.location.hash = '/login';
   };
 
-  // Data Fetching based on Route
   useEffect(() => {
     const loadData = async () => {
-      // Dictionaries can be fetched if missing, as they are not sensitive user data
       if (Object.keys(dictionaries).length === 0) {
           try {
              const d = await fetchDictionaries();
              setDictionaries(d);
           } catch(e) { console.error('Failed to load dictionaries', e); }
       }
-
-      // SENSITIVE DATA: Only fetch if logged in
       if (!isLoggedIn) {
           setLoading(false);
           return;
       }
-
-      // Route-specific fetching
       if (currentPath === '/settings') {
-          // Settings needs Users and Logs
           setLoading(true);
           try {
-              const [u, l] = await Promise.all([
-                  fetchUsers(),
-                  fetchLogs()
-              ]);
+              const [u, l] = await Promise.all([fetchUsers(), fetchLogs()]);
               setUsers(u);
               setLogs(l);
           } catch (e) {
@@ -191,26 +182,18 @@ const App: React.FC = () => {
               setLoading(false);
           }
       } else {
-          // Check for project routes
           let filters: any = null;
-          
-          if (currentPath === '/cycle/early') {
-              filters = { stage: 'early' };
-          } else if (currentPath === '/cycle/collection') {
-              filters = { stage: 'collection' };
-          } else if (currentPath === '/cycle/progress') {
-              filters = { stage: 'progress' };
-          } else if (currentPath === '/cycle/completed') {
-              filters = { stage: 'completed' };
-          } else if (currentPath.startsWith('/groups/')) {
+          if (currentPath === '/cycle/early') filters = { stage: 'early' };
+          else if (currentPath === '/cycle/collection') filters = { stage: 'collection' };
+          else if (currentPath === '/cycle/progress') filters = { stage: 'progress' };
+          else if (currentPath === '/cycle/completed') filters = { stage: 'completed' };
+          else if (currentPath.startsWith('/groups/')) {
               const slug = currentPath.split('/groups/')[1];
               if (slug) filters = { department: slug };
           }
-
           if (filters || currentPath === '/') {
               setLoading(true);
               try {
-                  // For dashboard (currentPath === '/'), filters is null, fetch all
                   const p = await fetchProjects(filters || {});
                   setProjects(p);
               } catch (e) {
@@ -219,37 +202,25 @@ const App: React.FC = () => {
                   setLoading(false);
               }
           } else {
-             // Unknown route
              setLoading(false);
           }
       }
     };
-    
     loadData();
-  }, [currentPath, dictionaries]); // Added dictionaries to dependency array for availableYears
+  }, [currentPath, dictionaries, isLoggedIn]);
 
-  // Helper to refresh logs
   const refreshLogs = async () => {
       const l = await fetchLogs();
       setLogs(l);
   };
 
-  // Project Handlers
   const handleAddProject = async (newProjectData: Partial<Project>) => {
-      const newProject = {
-          stage: ProjectStage.EARLY, 
-          department: CURRENT_USER.department!,
-          name: '新项目',
-          ...newProjectData,
-      };
-
+      const newProject = { stage: ProjectStage.EARLY, department: CURRENT_USER.department!, name: '新项目', ...newProjectData };
       try {
         const created = await createProject(newProject);
         setProjects(prev => [created, ...prev]);
         refreshLogs();
-      } catch (e) {
-          alert('创建失败');
-      }
+      } catch (e) { alertCustom('失败', '创建项目失败'); }
   };
 
   const handleUpdateProject = async (updatedProject: Project) => {
@@ -257,9 +228,7 @@ const App: React.FC = () => {
           const updated = await updateProject(updatedProject);
           setProjects(prev => prev.map(p => p.id === updated.id ? updated : p));
           refreshLogs();
-      } catch (e) {
-          alert('更新失败');
-      }
+      } catch (e) { alertCustom('失败', '更新项目失败'); }
   };
 
   const handleDeleteProject = async (id: string) => {
@@ -267,9 +236,7 @@ const App: React.FC = () => {
           await deleteProject(id);
           setProjects(prev => prev.filter(p => p.id !== id));
           refreshLogs();
-      } catch (e) {
-          alert('删除失败');
-      }
+      } catch (e) { alertCustom('失败', '删除项目失败'); }
   };
 
   const refreshUsers = async () => {
@@ -277,15 +244,12 @@ const App: React.FC = () => {
       setUsers(u);
   };
 
-  // Dictionary Handler
   const handleUpdateDictionary = async (key: string, values: DictItem[]) => {
       try {
         const updated = await updateDictionary(key, values);
         setDictionaries((prev: any) => ({...prev, [key]: updated.items}));
         refreshLogs();
-      } catch (e) {
-          alert('字典更新失败');
-      }
+      } catch (e) { alertCustom('失败', '字典更新失败'); }
   };
 
   useEffect(() => {
@@ -304,19 +268,15 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
-
     const isAdmin = currentUser?.role === 'admin';
-
-    // Handle dynamic group routes: /groups/:slug
     if (currentPath.startsWith('/groups/')) {
         const slug = currentPath.split('/groups/')[1];
         const department = DEPARTMENT_SLUGS[slug];
-        
         if (department) {
             return (
                 <GroupProjectManager 
                     department={department}
-                    projects={projects.filter(p => p.department === department)}
+                    projects={ l.filter(p => p.department === department) }
                     dictionaries={dictionaries}
                     onAddProject={handleAddProject}
                     onEditProject={handleUpdateProject}
@@ -325,488 +285,119 @@ const App: React.FC = () => {
                     availableYears={availableYears}
                     onSelectYear={setSelectedYear}
                     selectedQuarter={selectedQuarter}
+                    confirmCustom={confirmCustom}
                 />
             );
         }
     }
-
-    // Protection and Defaults for Non-Admins
     if (!isAdmin && (currentPath === '/' || currentPath.startsWith('/cycle/'))) {
-        // Find the user's department slug to show their group page instead
         const userDept = currentUser?.department;
         const deptSlug = Object.keys(DEPARTMENT_SLUGS).find(key => DEPARTMENT_SLUGS[key] === userDept);
-        
         if (deptSlug) {
-            // Implicitly render their department's group manager instead of Dashboard/Cycle
-            return (
-                <GroupProjectManager 
-                    department={userDept!}
-                    projects={projects.filter(p => p.department === userDept)}
-                    dictionaries={dictionaries}
-                    onAddProject={handleAddProject}
-                    onEditProject={handleUpdateProject}
-                    onDeleteProject={handleDeleteProject}
-                    selectedYear={selectedYear}
-                    availableYears={availableYears}
-                    onSelectYear={setSelectedYear}
-                    selectedQuarter={selectedQuarter}
-                />
-            );
+            return <GroupProjectManager department={userDept!} projects={projects.filter(p => p.department === userDept)} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} confirmCustom={confirmCustom} />;
         }
         return <div className="p-10 text-center text-muted-foreground">您没有分配部门，请联系超级管理员</div>;
     }
-
     switch (currentPath) {
-      case '/':
-        return <Dashboard 
-                  selectedYear={selectedYear} 
-                  availableYears={availableYears} 
-                  onSelectYear={setSelectedYear} 
-                  selectedQuarter={selectedQuarter}
-                  projects={projects}
-                />; 
-      
-      case '/cycle/early':
-        return (
-          <ProjectTable 
-            title="前期项目跟进" 
-            data={projects.filter(p => p.stage === ProjectStage.EARLY)}
-            columns={EARLY_COLUMNS as any}
-            dictionaries={dictionaries}
-            onAddProject={handleAddProject}
-            onEditProject={handleUpdateProject}
-            onDeleteProject={handleDeleteProject}
-            selectedYear={selectedYear} 
-            availableYears={availableYears} 
-            onSelectYear={setSelectedYear} 
-          />
-        );
-      case '/cycle/collection':
-        return (
-          <ProjectTable 
-            title="年度收款计划" 
-            data={projects.filter(p => p.stage === ProjectStage.COLLECTION)}
-            columns={COLLECTION_COLUMNS as any}
-            dictionaries={dictionaries}
-            onAddProject={handleAddProject}
-            onEditProject={handleUpdateProject}
-            onDeleteProject={handleDeleteProject}
-            selectedYear={selectedYear} 
-            availableYears={availableYears} 
-            onSelectYear={setSelectedYear} 
-          />
-        );
-      case '/cycle/progress':
-        return (
-          <ProjectTable 
-            title="各组项目列表及进度" 
-            data={projects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)}
-            columns={PROGRESS_COLUMNS as any}
-            dictionaries={dictionaries}
-            onAddProject={handleAddProject}
-            onEditProject={handleUpdateProject}
-            onDeleteProject={handleDeleteProject}
-            selectedYear={selectedYear} 
-            availableYears={availableYears} 
-            onSelectYear={setSelectedYear} 
-          />
-        );
-      case '/cycle/completed':
-        return (
-          <ProjectTable 
-            title="已完成项目" 
-            data={projects.filter(p => p.stage === ProjectStage.COMPLETED)}
-            columns={COMPLETED_COLUMNS as any}
-            dictionaries={dictionaries}
-            onAddProject={handleAddProject}
-            onEditProject={handleUpdateProject}
-            onDeleteProject={handleDeleteProject}
-            selectedYear={selectedYear} 
-            availableYears={availableYears} 
-            onSelectYear={setSelectedYear} 
-          />
-        );
-
-      case '/settings':
-        return (
-            <Settings 
-                users={users} 
-                currentUser={currentUser}
-                onRefreshUsers={refreshUsers}
-                logs={logs}
-                dictionaries={dictionaries}
-                onUpdateDictionary={handleUpdateDictionary}
-                currentThemeCode={currentThemeCode}
-                onUpdateThemeCode={setCurrentThemeCode}
-            />
-        );
-      default:
-        return <Dashboard 
-                  selectedYear={selectedYear} 
-                  availableYears={availableYears} 
-                  onSelectYear={setSelectedYear} 
-                />;
+      case '/': return <Dashboard selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} projects={projects} />;
+      case '/cycle/early': return <ProjectTable title="前期项目跟进" data={projects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/cycle/collection': return <ProjectTable title="年度收款计划" data={projects.filter(p => p.stage === ProjectStage.COLLECTION)} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/cycle/progress': return <ProjectTable title="各组项目列表及进度" data={projects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)} columns={PROGRESS_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/cycle/completed': return <ProjectTable title="已完成项目" data={projects.filter(p => p.stage === ProjectStage.COMPLETED)} columns={COMPLETED_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/settings': return <Settings users={users} currentUser={currentUser} onRefreshUsers={refreshUsers} logs={logs} dictionaries={dictionaries} onUpdateDictionary={handleUpdateDictionary} currentThemeCode={currentThemeCode} onUpdateThemeCode={setCurrentThemeCode} confirmCustom={confirmCustom} />;
+      default: return <Dashboard selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} projects={projects} />;
     }
   };
 
   const renderMainContent = () => {
     if (!isLoggedIn) return <Login onLogin={handleLogin} />;
-
     return (
       <>
         <Watermark userName={currentUser?.name || CURRENT_USER.name} />
-        
-                <div className="flex h-screen overflow-hidden">
-        
-                  <Sidebar 
-        
-                      currentPath={currentPath} 
-        
-                      onNavigate={handleNavigate} 
-        
-                      isOpen={sidebarOpen}
-        
-                      setIsOpen={setSidebarOpen}
-        
-                      currentUser={currentUser}
-        
-                      onLogout={handleLogout}
-        
-                      onChangePassword={() => setIsPwdModalOpen(true)}
-        
-                      isDarkMode={isDarkMode}
-        
-                      onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-        
-                  />
-        
-        
-        
-                            <div className="flex flex-1 flex-col overflow-hidden bg-background">
-        
-        
-        
-                                <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
-        
-        
-        
-                                    <button onClick={() => setSidebarOpen(true)}>
-        
-        
-        
-                                        <Menu className="h-6 w-6" />
-        
-        
-        
-                                    </button>
-        
-        
-        
-                                    <span className="font-semibold">项目管理系统</span>
-        
-        
-        
-                                </header>
-        
-        
-        
-                  
-        
-        
-        
-                                <main className="flex-1 overflow-y-auto p-6 md:p-12 bg-background">
-        
-        
-        
-                                    {/* Global Year Selector */}
-        
-        
-        
-                                    {currentPath !== '/settings' && currentPath !== '/login' && (
-        
-        
-        
-                                        <div className="flex items-center justify-between mb-8 border-b pb-4">
-        
-        
-        
-                                            <div>
-        
-        
-        
-                                                <h2 className="text-xl font-semibold">
-        
-        
-        
-                                                    {currentPath === '/' ? '数据总览' : 
-        
-        
-        
-                                                     currentPath.startsWith('/groups/') ? '项目组管理' : '项目周期'}
-        
-        
-        
-                                                </h2>
-        
-        
-        
-                                                <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
-        
-        
-        
-                                            </div>
-        
-        
-        
-                                            <div className="flex items-center gap-4">
-        
-        
-        
-                                                <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
-        
-        
-        
-                                                    <Calendar className="h-4 w-4 text-primary" />
-        
-        
-        
-                                                    <span className="text-sm font-medium">年份:</span>
-        
-        
-        
-                                                    <select 
-        
-        
-        
-                                                        value={selectedYear} 
-        
-        
-        
-                                                        onChange={(e) => setSelectedYear(Number(e.target.value))}
-        
-        
-        
-                                                        className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
-        
-        
-        
-                                                    >
-        
-        
-        
-                                                        {availableYears.map(year => (
-        
-        
-        
-                                                            <option key={year} value={year}>{year}</option>
-        
-        
-        
-                                                        ))}
-        
-        
-        
-                                                    </select>
-        
-        
-        
-                                                </div>
-        
-        
-        
-                                                <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
-        
-        
-        
-                                                    <span className="text-sm font-medium text-muted-foreground">|</span>
-        
-        
-        
-                                                    <span className="text-sm font-medium ml-2">季度:</span>
-        
-        
-        
-                                                    <select 
-        
-        
-        
-                                                        value={selectedQuarter} 
-        
-        
-        
-                                                        onChange={(e) => setSelectedQuarter(e.target.value)}
-        
-        
-        
-                                                        className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
-        
-        
-        
-                                                    >
-        
-        
-        
-                                                        <option value="all">全年</option>
-        
-        
-        
-                                                        <option value="1">第一季度</option>
-        
-        
-        
-                                                        <option value="2">第二季度</option>
-        
-        
-        
-                                                        <option value="3">第三季度</option>
-        
-        
-        
-                                                        <option value="4">第四季度</option>
-        
-        
-        
-                                                    </select>
-        
-        
-        
-                                                </div>
-        
-        
-        
-                                            </div>
-        
-        
-        
-                                        </div>
-        
-        
-        
-                                    )}
-        
-        
-        
-                  
-        
-        
-        
-                                    {(() => {
-        
-        
-        
-                                        if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
-        
-        
-        
-                  
-        
-        
-        
-                                        // Access Control Logic - Appearance is now public
-        
-        
-        
-                                        if (currentPath === '/settings') {
-        
-        
-        
-                                            // Everyone can access settings now (component will handle internal tab filtering)
-        
-        
-        
-                                            return renderContent();
-        
-        
-        
-                                        }
-        
-        
-        
-                                        
-        
-        
-        
-                                        if (currentPath.startsWith('/groups/')) {
-        
-        
-        
-                                            const slug = currentPath.split('/groups/')[1];
-        
-        
-        
-                                            const department = DEPARTMENT_SLUGS[slug];
-        
-        
-        
-                                            if (currentUser?.role !== 'admin' && currentUser?.department !== department) {
-        
-        
-        
-                                                return <div className="p-10 text-center text-red-500">您没有权限访问其他部门的项目</div>;
-        
-        
-        
-                                            }
-        
-        
-        
-                                        }
-        
-        
-        
-                  
-        
-        
-        
-                                        return renderContent();
-        
-        
-        
-                                    })()}
-        
-        
-        
-                                </main>
-        
-        
-        
-                            </div>
-        
-                </div>
+        <div className="flex h-screen overflow-hidden">
+          <Sidebar currentPath={currentPath} onNavigate={handleNavigate} isOpen={sidebarOpen} setIsOpen={setSidebarOpen} currentUser={currentUser} onLogout={handleLogout} onChangePassword={() => setIsPwdModalOpen(true)} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} confirmCustom={confirmCustom} />
+          <div className="flex flex-1 flex-col overflow-hidden bg-background">
+              <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
+                  <button onClick={() => setSidebarOpen(true)}><Menu className="h-6 w-6" /></button>
+                  <span className="font-semibold">项目管理系统</span>
+              </header>
+              <main className="flex-1 overflow-y-auto p-6 md:p-12 bg-background">
+                  {currentPath !== '/settings' && currentPath !== '/login' && (
+                      <div className="flex items-center justify-between mb-8 border-b pb-4">
+                          <div>
+                              <h2 className="text-xl font-semibold">{currentPath === '/' ? '数据总览' : currentPath.startsWith('/groups/') ? '项目组管理' : '项目周期'}</h2>
+                              <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+                                  <Calendar className="h-4 w-4 text-primary" />
+                                  <span className="text-sm font-medium">年份:</span>
+                                  <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer">{availableYears.map(year => (<option key={year} value={year}>{year}</option>))}</select>
+                              </div>
+                              <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+                                  <span className="text-sm font-medium text-muted-foreground">|</span>
+                                  <span className="text-sm font-medium ml-2">季度:</span>
+                                  <select value={selectedQuarter} onChange={(e) => setSelectedQuarter(e.target.value)} className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"><option value="all">全年</option><option value="1">第一季度</option><option value="2">第二季度</option><option value="3">第三季度</option><option value="4">第四季度</option></select>
+                              </div>
+                          </div>
+                      </div>
+                  )}
+                  {(() => {
+                      if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
+                      if (currentPath === '/settings') return renderContent();
+                      if (currentPath.startsWith('/groups/')) {
+                          const slug = currentPath.split('/groups/')[1];
+                          const department = DEPARTMENT_SLUGS[slug];
+                          if (currentUser?.role !== 'admin' && currentUser?.department !== department) { return <div className="p-10 text-center text-red-500">您没有权限访问其他部门的项目</div>; }
+                      }
+                      return renderContent();
+                  })()}
+              </main>
+          </div>
+        </div>
 
-        {/* Global Change Password Modal */}
-        {isPwdModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                <div className="bg-background w-full max-w-sm rounded-xl shadow-xl border p-6 animate-in zoom-in-95 duration-200">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-bold flex items-center gap-2">
-                            <Lock className="h-5 w-5 text-primary" /> 修改密码
-                        </h3>
-                        <button onClick={() => setIsPwdModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                            <XIcon className="h-5 w-5"/>
+        {/* Global Dialog Component */}
+        {dialog?.isOpen && (
+            <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setDialog(null)}>
+                <div className="bg-background w-full max-w-sm rounded-2xl shadow-2xl border p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className={`p-2 rounded-full ${dialog.isDestructive ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'}`}>
+                            {dialog.type === 'alert' ? <AlertCircle className="h-5 w-5" /> : <HelpCircle className="h-5 w-5" />}
+                        </div>
+                        <h3 className="text-lg font-bold">{dialog.title}</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-6">{dialog.message}</p>
+                    <div className="flex justify-end gap-2">
+                        {dialog.type === 'confirm' && (
+                            <button onClick={() => setDialog(null)} className="px-4 py-2 rounded-xl border hover:bg-muted text-sm font-bold transition-colors">取消</button>
+                        )}
+                        <button 
+                            onClick={() => { 
+                                if (dialog.onConfirm) dialog.onConfirm();
+                                setDialog(null);
+                            }} 
+                            className={`px-6 py-2 rounded-xl text-white text-sm font-bold shadow-lg transition-all ${dialog.isDestructive ? 'bg-red-600 shadow-red-200 hover:bg-red-700' : 'bg-primary shadow-primary/20 hover:opacity-90'}`}
+                        >
+                            {dialog.type === 'alert' ? '知道了' : '确认执行'}
                         </button>
                     </div>
+                </div>
+            </div>
+        )}
+
+        {/* Password Modal */}
+        {isPwdModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setIsPwdModalOpen(false)}>
+                <div className="bg-background w-full max-w-sm rounded-xl shadow-xl border p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-bold flex items-center gap-2"><Lock className="h-5 w-5 text-primary" /> 修改密码</h3>
+                        <button onClick={() => setIsPwdModalOpen(false)}><XIcon className="h-5 w-5 text-muted-foreground"/></button>
+                    </div>
                     <div className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">新登录密码</label>
-                            <input 
-                              type="password" 
-                              className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                              value={newPassword}
-                              onChange={e => setNewPassword(e.target.value)}
-                              placeholder="请输入新密码"
-                            />
-                        </div>
-                        <p className="text-xs text-muted-foreground italic">* 修改成功后系统将自动退出，请使用新密码重新登录。</p>
-                        <div className="pt-2 flex justify-end gap-2">
-                            <button onClick={() => setIsPwdModalOpen(false)} className="px-4 py-2 rounded-md border hover:bg-muted text-sm font-medium">取消</button>
-                            <button 
-                              onClick={handleUpdatePassword} 
-                              className="px-4 py-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 text-sm font-medium"
-                              disabled={!newPassword.trim()}
-                            >
-                              确认修改
-                            </button>
+                        <input type="password" className="w-full h-10 px-3 rounded-md border text-sm" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="新密码" />
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setIsPwdModalOpen(false)} className="px-4 py-2 rounded-md border text-sm">取消</button>
+                            <button onClick={handleUpdatePassword} className="px-4 py-2 rounded-md bg-primary text-white text-sm font-bold" disabled={!newPassword.trim()}>确认修改</button>
                         </div>
                     </div>
                 </div>
@@ -816,11 +407,7 @@ const App: React.FC = () => {
     );
   };
 
-  return (
-    <div className="min-h-screen bg-background text-foreground font-sans">
-        {renderMainContent()}
-    </div>
-  );
+  return <div className="min-h-screen bg-background text-foreground font-sans font-medium">{renderMainContent()}</div>;
 };
 
 export default App;

@@ -12,6 +12,7 @@ interface SidebarProps {
   onChangePassword: () => void;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void;
 }
 
 type MenuItem = {
@@ -21,7 +22,7 @@ type MenuItem = {
   children?: { name: string; path: string; icon?: React.ElementType }[];
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setIsOpen, currentUser, onLogout, onChangePassword, isDarkMode, onToggleDarkMode }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setIsOpen, currentUser, onLogout, onChangePassword, isDarkMode, onToggleDarkMode, confirmCustom }) => {
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     '项目周期': true,
     '各项目组': true
@@ -229,9 +230,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
               </button>
               <button 
                 onClick={() => {
-                  if (window.confirm('确定要退出系统吗？')) {
-                    onLogout();
-                  }
+                  confirmCustom(
+                    '确认退出',
+                    '您确定要退出项目管理系统吗？',
+                    () => onLogout(),
+                    true
+                  );
                 }}
                 className="p-2 text-muted-foreground hover:text-destructive transition-colors"
                 title="退出登录"
