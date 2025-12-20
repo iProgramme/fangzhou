@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Settings, ChevronDown, ChevronRight, X, Briefcase, LogOut, KeyRound } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, ChevronDown, ChevronRight, X, Briefcase, LogOut, KeyRound, Sun, Moon } from 'lucide-react';
 import { User, Department, DEPARTMENT_SLUGS } from '../types'; // Import User, Department and DEPARTMENT_SLUGS
 
 interface SidebarProps {
@@ -9,7 +9,9 @@ interface SidebarProps {
   setIsOpen: (isOpen: boolean) => void;
   currentUser: User | null;
   onLogout: () => void;
-  onChangePassword: () => void; // New prop
+  onChangePassword: () => void;
+  isDarkMode: boolean;
+  onToggleDarkMode: () => void;
 }
 
 type MenuItem = {
@@ -19,7 +21,7 @@ type MenuItem = {
   children?: { name: string; path: string; icon?: React.ElementType }[];
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setIsOpen, currentUser, onLogout, onChangePassword }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setIsOpen, currentUser, onLogout, onChangePassword, isDarkMode, onToggleDarkMode }) => {
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     '项目周期': true,
     '各项目组': true
@@ -211,6 +213,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
                </div>
             </div>
             <div className="flex items-center gap-1">
+              <button 
+                onClick={onToggleDarkMode}
+                className="p-2 text-muted-foreground hover:text-primary transition-colors"
+                title={isDarkMode ? '切换到明亮模式' : '切换到暗黑模式'}
+              >
+                {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
               <button 
                 onClick={onChangePassword}
                 className="p-2 text-muted-foreground hover:text-primary transition-colors"

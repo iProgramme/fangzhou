@@ -47,9 +47,38 @@ const App: React.FC = () => {
   const [isPwdModalOpen, setIsPwdModalOpen] = useState(false);
   const [newPassword, setNewPassword] = useState('');
 
+  // Theme & Appearance State
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('appearance_dark_mode') === 'true';
+  });
+  const [currentThemeCode, setCurrentThemeCode] = useState<string>(() => {
+    return localStorage.getItem('appearance_theme_code') || '';
+  });
+
+  // Apply Dark Mode
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('appearance_dark_mode', isDarkMode.toString());
+  }, [isDarkMode]);
+
+  // Apply Theme Code
+  useEffect(() => {
+    let styleTag = document.getElementById('dynamic-theme-style');
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = 'dynamic-theme-style';
+      document.head.appendChild(styleTag);
+    }
+    styleTag.innerHTML = currentThemeCode;
+    localStorage.setItem('appearance_theme_code', currentThemeCode);
+  }, [currentThemeCode]);
+
   // Authentication State
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    // Check localStorage for a token or user info
     return localStorage.getItem('isLoggedIn') === 'true';
   });
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -404,6 +433,8 @@ const App: React.FC = () => {
                 logs={logs}
                 dictionaries={dictionaries}
                 onUpdateDictionary={handleUpdateDictionary}
+                currentThemeCode={currentThemeCode}
+                onUpdateThemeCode={setCurrentThemeCode}
             />
         );
       default:
@@ -422,89 +453,177 @@ const App: React.FC = () => {
       <>
         <Watermark userName={currentUser?.name || CURRENT_USER.name} />
         
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar 
-              currentPath={currentPath} 
-              onNavigate={handleNavigate} 
-              isOpen={sidebarOpen}
-              setIsOpen={setSidebarOpen}
-              currentUser={currentUser}
-              onLogout={handleLogout}
-              onChangePassword={() => setIsPwdModalOpen(true)}
-          />
-
-          <div className="flex flex-1 flex-col overflow-hidden">
-              <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
-                  <button onClick={() => setSidebarOpen(true)}>
-                      <Menu className="h-6 w-6" />
-                  </button>
-                  <span className="font-semibold">项目管理系统</span>
-              </header>
-
-              <main className="flex-1 overflow-y-auto p-6 md:p-12">
-                  {/* Global Year Selector */}
-                  {currentPath !== '/settings' && currentPath !== '/login' && (
-                      <div className="flex items-center justify-between mb-8 border-b pb-4">
-                          <div>
-                              <h2 className="text-xl font-semibold">
-                                  {currentPath === '/' ? '数据总览' : 
-                                   currentPath.startsWith('/groups/') ? '项目组管理' : '项目周期'}
-                              </h2>
-                              <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
-                          </div>
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
-                                                            <Calendar className="h-4 w-4 text-primary" />
-                                                            <span className="text-sm font-medium">年份:</span>
-                                                            <select 
-                                                                value={selectedYear} 
-                                                                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                                                                className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
-                                                            >
-                                                                {availableYears.map(year => (
-                                                                    <option key={year} value={year}>{year}</option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
-                                                            <span className="text-sm font-medium text-muted-foreground">|</span>
-                                                            <span className="text-sm font-medium ml-2">季度:</span>
-                                                            <select 
-                                                                value={selectedQuarter} 
-                                                                onChange={(e) => setSelectedQuarter(e.target.value)}
-                                                                className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
-                                                            >
-                                                                <option value="all">全年</option>
-                                                                <option value="1">第一季度</option>
-                                                                <option value="2">第二季度</option>
-                                                                <option value="3">第三季度</option>
-                                                                <option value="4">第四季度</option>
-                                                            </select>
-                                                        </div>
-                                                    </div>                      </div>
-                  )}
-
-                  {(() => {
-                      if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
-
-                      // Access Control Logic
-                      if (currentPath === '/settings' && currentUser?.role !== 'admin') {
-                          return <div className="p-10 text-center text-red-500">您没有权限访问此页面</div>;
-                      }
-                      
-                      if (currentPath.startsWith('/groups/')) {
-                          const slug = currentPath.split('/groups/')[1];
-                          const department = DEPARTMENT_SLUGS[slug];
-                          if (currentUser?.role !== 'admin' && currentUser?.department !== department) {
-                              return <div className="p-10 text-center text-red-500">您没有权限访问其他部门的项目</div>;
-                          }
-                      }
-
-                      return renderContent();
-                  })()}
-              </main>
-          </div>
-        </div>
+                <div className="flex h-screen overflow-hidden">
+        
+                  <Sidebar 
+        
+                      currentPath={currentPath} 
+        
+                      onNavigate={handleNavigate} 
+        
+                      isOpen={sidebarOpen}
+        
+                      setIsOpen={setSidebarOpen}
+        
+                      currentUser={currentUser}
+        
+                      onLogout={handleLogout}
+        
+                      onChangePassword={() => setIsPwdModalOpen(true)}
+        
+                      isDarkMode={isDarkMode}
+        
+                      onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        
+                  />
+        
+        
+        
+                  <div className="flex flex-1 flex-col overflow-hidden">
+        
+                      <header className="flex h-16 items-center gap-4 border-b bg-card px-6 lg:hidden">
+        
+                          <button onClick={() => setSidebarOpen(true)}>
+        
+                              <Menu className="h-6 w-6" />
+        
+                          </button>
+        
+                          <span className="font-semibold">项目管理系统</span>
+        
+                      </header>
+        
+        
+        
+                      <main className="flex-1 overflow-y-auto p-6 md:p-12">
+        
+                          {/* Global Year Selector */}
+        
+                          {currentPath !== '/settings' && currentPath !== '/login' && (
+        
+                              <div className="flex items-center justify-between mb-8 border-b pb-4">
+        
+                                  <div>
+        
+                                      <h2 className="text-xl font-semibold">
+        
+                                          {currentPath === '/' ? '数据总览' : 
+        
+                                           currentPath.startsWith('/groups/') ? '项目组管理' : '项目周期'}
+        
+                                      </h2>
+        
+                                      <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
+        
+                                  </div>
+        
+                                  <div className="flex items-center gap-4">
+        
+                                      <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+        
+                                          <Calendar className="h-4 w-4 text-primary" />
+        
+                                          <span className="text-sm font-medium">年份:</span>
+        
+                                          <select 
+        
+                                              value={selectedYear} 
+        
+                                              onChange={(e) => setSelectedYear(Number(e.target.value))}
+        
+                                              className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+        
+                                          >
+        
+                                              {availableYears.map(year => (
+        
+                                                  <option key={year} value={year}>{year}</option>
+        
+                                              ))}
+        
+                                          </select>
+        
+                                      </div>
+        
+                                      <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
+        
+                                          <span className="text-sm font-medium text-muted-foreground">|</span>
+        
+                                          <span className="text-sm font-medium ml-2">季度:</span>
+        
+                                          <select 
+        
+                                              value={selectedQuarter} 
+        
+                                              onChange={(e) => setSelectedQuarter(e.target.value)}
+        
+                                              className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+        
+                                          >
+        
+                                              <option value="all">全年</option>
+        
+                                              <option value="1">第一季度</option>
+        
+                                              <option value="2">第二季度</option>
+        
+                                              <option value="3">第三季度</option>
+        
+                                              <option value="4">第四季度</option>
+        
+                                          </select>
+        
+                                      </div>
+        
+                                  </div>
+        
+                              </div>
+        
+                          )}
+        
+        
+        
+                          {(() => {
+        
+                              if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
+        
+        
+        
+                              // Access Control Logic
+        
+                              if (currentPath === '/settings' && currentUser?.role !== 'admin') {
+        
+                                  return <div className="p-10 text-center text-red-500">您没有权限访问此页面</div>;
+        
+                              }
+        
+                              
+        
+                              if (currentPath.startsWith('/groups/')) {
+        
+                                  const slug = currentPath.split('/groups/')[1];
+        
+                                  const department = DEPARTMENT_SLUGS[slug];
+        
+                                  if (currentUser?.role !== 'admin' && currentUser?.department !== department) {
+        
+                                      return <div className="p-10 text-center text-red-500">您没有权限访问其他部门的项目</div>;
+        
+                                  }
+        
+                              }
+        
+        
+        
+                              return renderContent();
+        
+                          })()}
+        
+                      </main>
+        
+                  </div>
+        
+                </div>
 
         {/* Global Change Password Modal */}
         {isPwdModalOpen && (

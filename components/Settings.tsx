@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson } from 'lucide-react';
+import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson, Monitor, ExternalLink } from 'lucide-react';
 import { User, Department, OperationLog, SystemDictionary, DictItem, Project } from '../types';
 import { TAG_COLORS } from '../services/mockData';
 import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects, createProject, updateProject } from '../services/api';
@@ -10,14 +10,41 @@ interface SettingsProps {
     logs: OperationLog[];
     dictionaries: SystemDictionary;
     onUpdateDictionary: (key: string, values: DictItem[]) => void;
+    currentThemeCode: string;
+    onUpdateThemeCode: (code: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictionaries, onUpdateDictionary }) => {
-    const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict'>('users');
+const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictionaries, onUpdateDictionary, currentThemeCode, onUpdateThemeCode }) => {
+    const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict' | 'appearance'>('users');
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<Partial<User>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+    // Theme Configs
+    const themes = [
+        { id: 'default', name: '系统默认', color: 'bg-primary' },
+        { id: 'amber_minimal', name: '琥珀简约', color: 'bg-amber-500' },
+        { id: 'bubblegum', name: '泡泡糖', color: 'bg-pink-400' },
+        { id: 'claude', name: 'Claude 风格', color: 'bg-orange-700' },
+        { id: 'cyberpunk', name: '赛博朋克', color: 'bg-blue-400' },
+        { id: 'nature', name: '自然清新', color: 'bg-green-600' },
+    ];
+
+    const applyPresetTheme = async (id: string) => {
+        if (id === 'default') {
+            onUpdateThemeCode('');
+            return;
+        }
+        try {
+            const res = await fetch(`/styles/${id}.css`);
+            const css = await res.text();
+            onUpdateThemeCode(css);
+            showToast(`主题 ${id} 已应用`);
+        } catch (e) {
+            showToast('获取主题文件失败', 'error');
+        }
+    };
 
     // New states for Import/Export requirements
     const [hasExported, setHasExported] = useState(false);
@@ -214,6 +241,12 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                     <List className="h-4 w-4"/> 操作日志
                 </button>
                 <button 
+                    onClick={() => setActiveTab('appearance')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'appearance' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                >
+                    <Palette className="h-4 w-4"/> 个性化
+                </button>
+                <button 
                     onClick={() => setActiveTab('system')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'system' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                 >
@@ -393,6 +426,76 @@ const Settings: React.FC<SettingsProps> = ({ users, onRefreshUsers, logs, dictio
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: Appearance & Themes */}
+            {activeTab === 'appearance' && (
+                <div className="space-y-8 animate-in fade-in">
+                    {/* Preset Themes Section */}
+                    <div className="rounded-xl border bg-card p-6 shadow-sm">
+                        <div className="flex items-center gap-2 mb-6">
+                            <Monitor className="h-5 w-5 text-primary" />
+                            <h3 className="text-lg font-medium">预设皮肤库</h3>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            {themes.map(t => (
+                                <button
+                                    key={t.id}
+                                    onClick={() => applyPresetTheme(t.id)}
+                                    className="group flex flex-col items-center gap-3 p-4 rounded-xl border-2 border-transparent hover:border-primary/50 hover:bg-primary/5 transition-all"
+                                >
+                                    <div className={`h-12 w-12 rounded-full ${t.color} shadow-lg ring-4 ring-background transition-transform group-hover:scale-110`} />
+                                    <span className="text-sm font-bold">{t.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Custom Theme Code Section */}
+                    <div className="rounded-xl border bg-card p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-2">
+                                <Palette className="h-5 w-5 text-primary" />
+                                <h3 className="text-lg font-medium">自定义主题代码</h3>
+                            </div>
+                            <a 
+                                href="https://tweakcn.com/editor/theme" 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="text-xs font-bold text-primary flex items-center gap-1 hover:underline"
+                            >
+                                前往在线编辑器生成代码 <ExternalLink className="h-3 w-3" />
+                            </a>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-xs text-yellow-800 leading-relaxed">
+                                <p className="font-bold mb-1">使用说明：</p>
+                                <ol className="list-decimal ml-4 space-y-1">
+                                    <li>在 TweakCN 编辑器中配置您喜欢的主题色、圆角等参数。</li>
+                                    <li>点击编辑器底部的“复制代码”按钮。</li>
+                                    <li>将代码粘贴到下方的输入框中，系统将实时应用您的专属皮肤。</li>
+                                </ol>
+                            </div>
+
+                            <textarea
+                                className="w-full h-64 p-4 rounded-xl border bg-muted/20 font-mono text-xs leading-relaxed focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                placeholder="请在此处贴入从 tweakcn.com 复制的主题代码 (CSS :root 结构)..."
+                                value={currentThemeCode}
+                                onChange={(e) => onUpdateThemeCode(e.target.value)}
+                            />
+                            
+                            <div className="flex justify-end gap-2">
+                                <button 
+                                    onClick={() => onUpdateThemeCode('')}
+                                    className="px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted"
+                                >
+                                    清除自定义样式并还原
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
