@@ -209,6 +209,42 @@ const App: React.FC = () => {
     loadData();
   }, [currentPath, dictionaries, isLoggedIn]);
 
+  // Filtered Projects based on Year and Quarter
+  const filteredProjects = React.useMemo(() => {
+    return projects.filter(p => {
+      // 1. Year Filter
+      const hasYearlyData = p.annualData?.some(d => d.year === selectedYear);
+      const isEarlyThisYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
+      const signedThisYear = p.signingDate?.startsWith(selectedYear.toString());
+      
+      const matchesYear = hasYearlyData || isEarlyThisYear || signedThisYear;
+      if (!matchesYear) return false;
+
+      // 2. Quarter Filter
+      if (selectedQuarter !== 'all') {
+        const q = Number(selectedQuarter);
+        let matchesQuarter = false;
+        
+        // Check signingDate
+        if (p.signingDate) {
+          const month = parseInt(p.signingDate.split('-')[1]);
+          if (Math.ceil(month / 3) === q) matchesQuarter = true;
+        }
+        
+        // Check annualData collectionDate for the current selected year
+        const yearlyRecord = p.annualData?.find(d => d.year === selectedYear);
+        if (yearlyRecord?.collectionDate) {
+          const month = parseInt(yearlyRecord.collectionDate.split('-')[1]);
+          if (Math.ceil(month / 3) === q) matchesQuarter = true;
+        }
+        
+        if (!matchesQuarter) return false;
+      }
+
+      return true;
+    });
+  }, [projects, selectedYear, selectedQuarter]);
+
   const refreshLogs = async () => {
       const l = await fetchLogs();
       setLogs(l);
@@ -247,8 +283,10 @@ const App: React.FC = () => {
   const handleUpdateDictionary = async (key: string, values: DictItem[]) => {
       try {
         const updated = await updateDictionary(key, values);
+        // Direct local state update for smooth UX
         setDictionaries((prev: any) => ({...prev, [key]: updated.items}));
-        refreshLogs();
+        // We still fetch logs in background
+        fetchLogs().then(l => setLogs(l));
       } catch (e) { alertCustom('失败', '字典更新失败'); }
   };
 
@@ -276,7 +314,7 @@ const App: React.FC = () => {
             return (
                 <GroupProjectManager 
                     department={department}
-                    projects={ projects.filter(p => p.department === department) }
+                    projects={ filteredProjects.filter(p => p.department === department) }
                     dictionaries={dictionaries}
                     onAddProject={handleAddProject}
                     onEditProject={handleUpdateProject}
@@ -294,18 +332,18 @@ const App: React.FC = () => {
         const userDept = currentUser?.department;
         const deptSlug = Object.keys(DEPARTMENT_SLUGS).find(key => DEPARTMENT_SLUGS[key] === userDept);
         if (deptSlug) {
-            return <GroupProjectManager department={userDept!} projects={projects.filter(p => p.department === userDept)} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} confirmCustom={confirmCustom} />;
+            return <GroupProjectManager department={userDept!} projects={filteredProjects.filter(p => p.department === userDept)} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} confirmCustom={confirmCustom} />;
         }
         return <div className="p-10 text-center text-muted-foreground">您没有分配部门，请联系超级管理员</div>;
     }
     switch (currentPath) {
-      case '/': return <Dashboard selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} projects={projects} />;
-      case '/cycle/early': return <ProjectTable title="前期项目跟进" data={projects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
-      case '/cycle/collection': return <ProjectTable title="年度收款计划" data={projects.filter(p => p.stage === ProjectStage.COLLECTION)} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
-      case '/cycle/progress': return <ProjectTable title="各组项目列表及进度" data={projects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)} columns={PROGRESS_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
-      case '/cycle/completed': return <ProjectTable title="已完成项目" data={projects.filter(p => p.stage === ProjectStage.COMPLETED)} columns={COMPLETED_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/': return <Dashboard selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} projects={filteredProjects} />;
+      case '/cycle/early': return <ProjectTable title="前期项目跟进" data={filteredProjects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/cycle/collection': return <ProjectTable title="年度收款计划" data={filteredProjects.filter(p => p.stage === ProjectStage.COLLECTION)} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/cycle/progress': return <ProjectTable title="各组项目列表及进度" data={filteredProjects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)} columns={PROGRESS_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/cycle/completed': return <ProjectTable title="已完成项目" data={filteredProjects.filter(p => p.stage === ProjectStage.COMPLETED)} columns={COMPLETED_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
       case '/settings': return <Settings users={users} currentUser={currentUser} onRefreshUsers={refreshUsers} logs={logs} dictionaries={dictionaries} onUpdateDictionary={handleUpdateDictionary} currentThemeCode={currentThemeCode} onUpdateThemeCode={setCurrentThemeCode} confirmCustom={confirmCustom} />;
-      default: return <Dashboard selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} projects={projects} />;
+      default: return <Dashboard selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} projects={filteredProjects} />;
     }
   };
 
