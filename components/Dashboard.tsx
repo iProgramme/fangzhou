@@ -217,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
     <>
       <div className="space-y-6 animate-in fade-in duration-500 pb-10 max-w-[1800px] mx-auto px-4">
         <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3"><BarChart3 className="text-primary h-7 w-7" /><h1 className="text-xl font-black tracking-tight text-gray-800 uppercase italic">Live Executive Dashboard</h1></div>
+            <div className="flex items-center gap-3"><BarChart3 className="text-primary h-7 w-7" /><h1 className="text-xl font-black tracking-tight text-gray-800 uppercase italic">经营决策实时看板</h1></div>
             <div className="flex p-1 bg-muted rounded-xl border text-[12px] font-bold shadow-sm">
                 <button onClick={() => setActiveTab('financial')} className={`px-5 py-1.5 rounded-lg transition-all ${activeTab === 'financial' ? 'bg-background shadow text-primary' : 'text-muted-foreground'}`}>财务经营</button>
                 <button onClick={() => setActiveTab('early')} className={`px-5 py-1.5 rounded-lg transition-all ${activeTab === 'early' ? 'bg-background shadow text-primary' : 'text-muted-foreground'}`}>前期跟进</button>

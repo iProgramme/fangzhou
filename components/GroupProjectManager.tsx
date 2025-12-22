@@ -10,82 +10,49 @@ interface GroupProjectManagerProps {
     onAddProject: (data: Partial<Project>) => void;
     onEditProject: (project: Project) => void;
     onDeleteProject: (id: string) => void;
-        selectedYear: number;
-        availableYears: number[];
-        onSelectYear: (year: number) => void;
-        selectedQuarter: string;
-        confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void;
-    }
-    
-    const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
-        department,
-        projects,
-        dictionaries,
-        onAddProject,
-        onEditProject,
-        onDeleteProject,
-        selectedYear,
-        availableYears,
-        onSelectYear,
-        confirmCustom
-    }) => {    const [activeTab, setActiveTab] = useState<string>('progress'); // Default to Progress
+    selectedYear: number;
+    availableYears: number[];
+    onSelectYear: (year: number) => void;
+    confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void;
+}
+
+const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
+    department, projects, dictionaries, onAddProject, onEditProject, onDeleteProject,
+    selectedYear, availableYears, onSelectYear, confirmCustom
+}) => {
+    const [activeTab, setActiveTab] = useState<string>('progress');
 
     const getFilteredData = () => {
-        switch (activeTab) {
-            case 'early': return projects.filter(p => p.stage === ProjectStage.EARLY);
-            case 'collection': return projects.filter(p => p.stage === ProjectStage.COLLECTION);
-            case 'completed': return projects.filter(p => p.stage === ProjectStage.COMPLETED);
-            case 'progress': return projects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS);
-            default: return projects;
-        }
+        const stage = activeTab === 'early' ? ProjectStage.EARLY : activeTab === 'collection' ? ProjectStage.COLLECTION : activeTab === 'completed' ? ProjectStage.COMPLETED : ProjectStage.GROUP_PROGRESS;
+        return projects.filter(p => p.stage === stage);
     };
 
     const getColumns = () => {
-        // Group views usually include an ID/Serial Number column first
         const idCol = { key: 'id', header: '序号', render: renderId };
-        
-        switch (activeTab) {
-            case 'early': return [idCol, ...EARLY_COLUMNS];
-            case 'collection': return [idCol, ...COLLECTION_COLUMNS];
-            case 'completed': return [idCol, ...COMPLETED_COLUMNS];
-            case 'progress': 
-            default: 
-                return [idCol, ...PROGRESS_COLUMNS];
-        }
+        if (activeTab === 'early') return [idCol, ...EARLY_COLUMNS];
+        if (activeTab === 'collection') return [idCol, ...COLLECTION_COLUMNS];
+        if (activeTab === 'completed') return [idCol, ...COMPLETED_COLUMNS];
+        return [idCol, ...PROGRESS_COLUMNS];
     };
 
     const tabs = [
-        { id: 'progress', label: '各组项目列表及进度' },
-        { id: 'early', label: '前期项目跟进' },
-        { id: 'collection', label: '年底收款计划' },
-        { id: 'completed', label: '已完成项目' },
+        { id: 'progress', label: '进行中' },
+        { id: 'early', label: '前期' },
+        { id: 'collection', label: '收款' },
+        { id: 'completed', label: '已完成' },
     ];
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-2">
-                <h1 className="text-2xl font-bold">{department}</h1>
-                <p className="text-muted-foreground text-sm">管理该部门下的所有项目全周期数据</p>
-            </div>
-
-            {/* Internal Tabs */}
-            <div className="border-b overflow-x-auto">
-                <nav className="-mb-px flex space-x-6">
+        <div className="space-y-4">
+            <div className="border-b overflow-x-auto custom-scrollbar flex items-center justify-between gap-4">
+                <nav className="-mb-px flex space-x-4">
                     {tabs.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`
-                                whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition-colors
-                                ${activeTab === tab.id 
-                                    ? 'border-primary text-primary' 
-                                    : 'border-transparent text-muted-foreground hover:border-gray-300 hover:text-foreground'}
-                            `}
-                        >
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`whitespace-nowrap border-b-2 py-2 px-1 text-sm font-bold transition-all ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
                             {tab.label}
                         </button>
                     ))}
                 </nav>
+                <span className="text-[11px] font-black text-muted-foreground bg-muted px-2 py-0.5 rounded-full uppercase hidden md:inline-block">{department}</span>
             </div>
 
             <ProjectTable 
