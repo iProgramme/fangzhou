@@ -37,7 +37,10 @@ export const createProject = async (project: Partial<Project>): Promise<Project>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(project)
     });
-    if (!res.ok) throw new Error('创建项目失败');
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '创建项目失败');
+    }
     return res.json();
 };
 
@@ -47,7 +50,10 @@ export const updateProject = async (project: Project): Promise<Project> => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(project)
     });
-    if (!res.ok) throw new Error('更新项目失败');
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '更新项目失败');
+    }
     return res.json();
 };
 

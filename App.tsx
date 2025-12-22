@@ -276,7 +276,7 @@ const App: React.FC = () => {
             return (
                 <GroupProjectManager 
                     department={department}
-                    projects={ l.filter(p => p.department === department) }
+                    projects={ projects.filter(p => p.department === department) }
                     dictionaries={dictionaries}
                     onAddProject={handleAddProject}
                     onEditProject={handleUpdateProject}

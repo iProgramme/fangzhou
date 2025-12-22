@@ -37,6 +37,14 @@ export interface AnnualData {
   collectionDate?: string; // New field for collection date
 }
 
+export interface TimelineEvent {
+  id: string;
+  date: string; // YYYY-MM-DD
+  title: string;
+  description: string;
+  type: 'milestone' | 'progress' | 'payment' | 'other';
+}
+
 export interface Project {
   id: string;
   stage: ProjectStage;
@@ -71,6 +79,9 @@ export interface Project {
   
   // Yearly Data (Scalable)
   annualData: AnnualData[]; 
+
+  // Timeline
+  timeline?: TimelineEvent[];
 
   // Planning & Team
   nextPlan?: string; // 下一步工作计划

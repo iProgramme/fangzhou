@@ -107,13 +107,36 @@ app.get('/api/projects', async (req, res) => {
 // 创建新项目
 app.post('/api/projects', async (req, res) => {
   try {
-    const newProject = { ...req.body, id: req.body.id || nanoid(10) };
+    // 严格过滤字段，只保留 schema 中定义的字段
+    const allowedFields = [
+        'id', 'stage', 'department', 'responsiblePerson', 'region', 'category',
+        'threeReviewType', 'source', 'contractNo', 'contractStatus', 'name',
+        'clientName', 'clientType', 'probability', 'workProgress', 'remarks',
+        'signingMethod', 'signingDate', 'consortium', 'type', 'totalAmount',
+        'instituteAmount', 'deptAmount', 'paymentProgress', 'collectedAmount',
+        'annualData', 'timeline', 'nextPlan', 'teamMembers', 'collectionTarget',
+        'paymentLevel', 'completionStatus', 'contractLocation', 'progressStatus'
+    ];
+
+    const cleanData = Object.keys(req.body)
+        .filter(key => allowedFields.includes(key))
+        .reduce((obj, key) => {
+            obj[key] = req.body[key];
+            return obj;
+        }, {} as any);
+
+    // 必填项检查与补全
+    if (!cleanData.name) return res.status(400).json({ error: '项目名称必填' });
+    if (!cleanData.stage) cleanData.stage = '前期项目跟进';
+    if (!cleanData.department) cleanData.department = '综合组（汤、黄）';
+
+    const newProject = { ...cleanData, id: cleanData.id || nanoid(10) };
     const result = await db.insert(projects).values(newProject).returning();
     
     // 记录日志
     await db.insert(operationLogs).values({
         id: nanoid(),
-        userId: 'u-001', // 暂时使用模拟用户
+        userId: 'u-001', 
         userName: 'Admin',
         action: 'CREATE',
         targetType: 'PROJECT',
@@ -124,8 +147,8 @@ app.post('/api/projects', async (req, res) => {
 
     res.json(result[0]);
   } catch (error) {
-    console.error('创建项目失败:', error);
-    res.status(500).json({ error: '创建项目失败' });
+    console.error('创建项目失败详情:', error);
+    res.status(500).json({ error: '创建项目失败: ' + (error instanceof Error ? error.message : String(error)) });
   }
 });
 

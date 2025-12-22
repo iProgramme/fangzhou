@@ -59,6 +59,9 @@ export const projects = pgTable('projects', {
   // 年度数据 (存储为 JSONB，因为它是对象数组)
   annualData: jsonb('annual_data').default([]), 
 
+  // 项目时间线 (记录关键节点)
+  timeline: jsonb('timeline').default([]),
+
   // 计划与团队
   nextPlan: text('next_plan'), // 下一步计划
   teamMembers: text('team_members'), // 团队成员
