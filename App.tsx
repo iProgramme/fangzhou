@@ -283,9 +283,12 @@ const App: React.FC = () => {
   const handleUpdateDictionary = async (key: string, values: DictItem[]) => {
       try {
         const updated = await updateDictionary(key, values);
-        // Direct local state update for smooth UX
-        setDictionaries((prev: any) => ({...prev, [key]: updated.items}));
-        // We still fetch logs in background
+        // Silent state update to avoid component remounts
+        setDictionaries((prev: any) => {
+            if (prev[key] === updated.items) return prev;
+            return {...prev, [key]: updated.items};
+        });
+        // Background fetch logs without setting global loading
         fetchLogs().then(l => setLogs(l));
       } catch (e) { alertCustom('失败', '字典更新失败'); }
   };
