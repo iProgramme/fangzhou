@@ -1,8 +1,65 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson, Monitor, ExternalLink } from 'lucide-react';
+import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson, Monitor, ExternalLink, FileSpreadsheet, File } from 'lucide-react';
 import { User, Department, OperationLog, SystemDictionary, DictItem, Project } from '../types';
 import { TAG_COLORS } from '../services/mockData';
 import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects, createProject, updateProject, fetchThemeCSS } from '../services/api';
+import * as XLSX from 'xlsx';
+
+// Project Field Mapping (Chinese <-> English)
+const PROJECT_FIELD_MAPPING: Record<string, keyof Project | 'annualDataJson'> = {
+    "项目ID": "id",
+    "项目阶段": "stage",
+    "所属部门": "department",
+    "项目负责人": "responsiblePerson",
+    "地区": "region",
+    "项目类别": "category",
+    "三审类型": "threeReviewType",
+    "项目来源": "source",
+    "合同编号": "contractNo",
+    "合同状态": "contractStatus",
+    "项目名称": "name",
+    "甲方名称": "clientName",
+    "客户类型": "clientType",
+    "可能性": "probability",
+    "工作进展": "workProgress",
+    "备注": "remarks",
+    "签订方式": "signingMethod",
+    "签订日期": "signingDate",
+    "联合体单位": "consortium",
+    "项目类型": "type",
+    "总合同额": "totalAmount",
+    "我院合同额": "instituteAmount",
+    "我所合同额": "deptAmount",
+    "收款进度": "paymentProgress",
+    "已收款": "collectedAmount",
+    "下一步计划": "nextPlan",
+    "团队成员": "teamMembers",
+    "收款目标": "collectionTarget",
+    "收款等级": "paymentLevel",
+    "完成情况": "completionStatus",
+    "合同位置": "contractLocation",
+    "进度情况": "progressStatus",
+    "年度数据(JSON)": "annualDataJson" // Virtual field for handling complex object
+};
+
+// User Field Mapping
+const USER_FIELD_MAPPING: Record<string, keyof User> = {
+    "用户ID": "id",
+    "姓名": "name",
+    "邮箱": "email",
+    "角色": "role",
+    "部门": "department",
+    "状态": "status",
+    "密码": "password"
+};
+
+// Dictionary Field Mapping (Flatted structure for Excel)
+const DICT_FIELD_MAPPING = {
+    "字典类型": "type",
+    "选项名称": "label",
+    "背景颜色": "bgColor",
+    "文字颜色": "textColor"
+};
 
 interface SettingsProps {
     users: User[];
@@ -57,29 +114,99 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
         setTimeout(() => setToast(null), 3000);
     };
 
+    // Download Template Handler
+    const handleDownloadTemplate = (type: 'projects' | 'dictionaries' | 'users') => {
+        let headers: string[] = [];
+        let sheetName = "";
+        
+        if (type === 'projects') {
+            headers = Object.keys(PROJECT_FIELD_MAPPING);
+            sheetName = "Projects Template";
+        } else if (type === 'users') {
+            headers = Object.keys(USER_FIELD_MAPPING);
+            sheetName = "Users Template";
+        } else if (type === 'dictionaries') {
+            headers = Object.keys(DICT_FIELD_MAPPING);
+            sheetName = "Dictionaries Template";
+        }
+
+        const worksheet = XLSX.utils.aoa_to_sheet([headers]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+        XLSX.writeFile(workbook, `template_${type}.xlsx`);
+        showToast('模板下载成功');
+    };
+
     // Export Handler
     const handleExportData = async (type: 'projects' | 'dictionaries' | 'users') => {
         let data: any;
-        let filename = `export_${type}_${new Date().toISOString().split('T')[0]}.json`;
-
+        const dateStr = new Date().toISOString().split('T')[0];
+        
         try {
-            if (type === 'projects') data = await fetchProjects();
-            else if (type === 'dictionaries') data = dictionaries;
-            else if (type === 'users') data = users;
+            if (type === 'projects') {
+                // Excel Export for Projects
+                data = await fetchProjects();
+                const excelData = (data as Project[]).map(project => {
+                    const row: any = {};
+                    Object.entries(PROJECT_FIELD_MAPPING).forEach(([cnHeader, enKey]) => {
+                        if (enKey === 'annualDataJson') {
+                            row[cnHeader] = JSON.stringify(project.annualData || []);
+                        } else {
+                            row[cnHeader] = project[enKey as keyof Project];
+                        }
+                    });
+                    return row;
+                });
 
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+                const worksheet = XLSX.utils.json_to_sheet(excelData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Projects");
+                XLSX.writeFile(workbook, `export_projects_${dateStr}.xlsx`);
+                
+            } else if (type === 'users') {
+                // Excel Export for Users
+                data = users;
+                const excelData = (data as User[]).map(user => {
+                    const row: any = {};
+                    Object.entries(USER_FIELD_MAPPING).forEach(([cnHeader, enKey]) => {
+                        row[cnHeader] = user[enKey as keyof User];
+                    });
+                    return row;
+                });
+
+                const worksheet = XLSX.utils.json_to_sheet(excelData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+                XLSX.writeFile(workbook, `export_users_${dateStr}.xlsx`);
+
+            } else if (type === 'dictionaries') {
+                // Excel Export for Dictionaries (Flattened)
+                const excelData: any[] = [];
+                Object.entries(dictionaries).forEach(([dictType, items]) => {
+                    items.forEach(item => {
+                        excelData.push({
+                            "字典类型": dictType,
+                            "选项名称": item.label,
+                            "背景颜色": item.bgColor,
+                            "文字颜色": item.textColor
+                        });
+                    });
+                });
+
+                const worksheet = XLSX.utils.json_to_sheet(excelData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Dictionaries");
+                XLSX.writeFile(workbook, `export_dictionaries_${dateStr}.xlsx`);
+                
+            } else {
+                // Fallback (Should be unreachable with current types but kept for safety)
+                 // ... JSON export logic removed as we moved to Excel for all ...
+            }
             
             setHasExported(true); // Unlock Import
             showToast('备份导出成功，导入功能已解锁');
         } catch (e) {
+            console.error(e);
             showToast('导出失败', 'error');
         }
     };
@@ -87,7 +214,7 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
     // Import Handler
     const handleImportData = (type: 'projects' | 'dictionaries' | 'users', e: React.ChangeEvent<HTMLInputElement>) => {
         if (!hasExported) {
-            showToast('安全限制：导入前必须先点击“导出JSON”备份当前数据', 'error');
+            showToast('安全限制：导入前必须先点击“导出”备份当前数据', 'error');
             e.target.value = '';
             return;
         }
@@ -95,52 +222,261 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const importedData = JSON.parse(event.target?.result as string);
-                const modeText = importTabMode === 'add' ? '【增量新增】' : '【全量覆盖】';
-                
-                confirmCustom(
-                    `确认导入 - ${modeText}`,
-                    `您确定要使用 ${modeText} 模式导入 ${type} 数据吗？${importTabMode === 'overwrite' ? '警告：此操作将尝试覆盖/替换现有冲突数据！建议先执行导出备份。' : '注意：增量模式下将跳过已存在的数据。'} `,
-                    async () => {
-                        setIsSubmitting(true);
+        const importTabMode = importTab;
+
+                const processImport = async (importedData: any) => {
+
+                    try {
+
+                        const modeText = importTabMode === 'add' ? '【增量新增】' : '【全量覆盖】';
+
                         
-                        if (type === 'dictionaries') {
-                            for (const [key, items] of Object.entries(importedData)) {
-                                let finalItems = items as DictItem[];
-                                if (importTabMode === 'add') {
-                                    const current = dictionaries[key] || [];
-                                    const existingLabels = new Set(current.map(i => i.label));
-                                    finalItems = [...current, ...finalItems.filter(i => !existingLabels.has(i.label))];
+
+                        confirmCustom(
+
+                            `确认导入 - ${modeText}`,
+
+                            `您确定要使用 ${modeText} 模式导入 ${type} 数据吗？${importTabMode === 'overwrite' ? '警告：此操作将尝试覆盖/替换现有冲突数据！建议先执行导出备份。' : '注意：增量模式下将跳过已存在的数据。'} `,
+
+                            async () => {
+
+                                setIsSubmitting(true);
+
+                                let successCount = 0;
+
+                                let skipCount = 0;
+
+                                let errorCount = 0;
+
+                                
+
+                                try {
+
+                                    if (type === 'dictionaries') {
+
+                                        for (const [key, items] of Object.entries(importedData)) {
+
+                                            try {
+
+                                                let finalItems = items as DictItem[];
+
+                                                if (importTabMode === 'add') {
+
+                                                    const current = dictionaries[key] || [];
+
+                                                    const existingLabels = new Set(current.map(i => i.label));
+
+                                                    const newItems = finalItems.filter(i => !existingLabels.has(i.label));
+
+                                                    skipCount += (finalItems.length - newItems.length);
+
+                                                    finalItems = [...current, ...newItems];
+
+                                                }
+
+                                                await onUpdateDictionary(key, finalItems);
+
+                                                successCount++;
+
+                                            } catch (e) {
+
+                                                errorCount++;
+
+                                            }
+
+                                        }
+
+                                    } else if (type === 'users') {
+
+                                        for (const user of (importedData as User[])) {
+
+                                            try {
+
+                                                if (user.id) {
+
+                                                    const exists = users.find(u => u.id === user.id);
+
+                                                    if (exists && importTabMode === 'add') {
+
+                                                        skipCount++;
+
+                                                        continue;
+
+                                                    }
+
+                                                    await updateUser(user);
+
+                                                } else {
+
+                                                    await createUser(user);
+
+                                                }
+
+                                                successCount++;
+
+                                            } catch (e) {
+
+                                                errorCount++;
+
+                                            }
+
+                                        }
+
+                                        onRefreshUsers();
+
+                                    } else if (type === 'projects') {
+
+                                        const currentProjects = await fetchProjects();
+
+                                        for (const proj of (importedData as Project[])) {
+
+                                            try {
+
+                                                const exists = currentProjects.find((p: Project) => p.id === proj.id);
+
+                                                if (exists && importTabMode === 'add') {
+
+                                                    skipCount++;
+
+                                                    continue;
+
+                                                }
+
+                                                
+
+                                                if (exists && importTabMode === 'overwrite') {
+
+                                                    await updateProject(proj);
+
+                                                } else {
+
+                                                    await createProject(proj);
+
+                                                }
+
+                                                successCount++;
+
+                                            } catch (e) {
+
+                                                errorCount++;
+
+                                            }
+
+                                        }
+
+                                    }
+
+                                    showToast(`${modeText} 导入完成！成功: ${successCount} 条, 跳过: ${skipCount} 条, 失败: ${errorCount} 条`, errorCount > 0 ? 'error' : 'success');
+
+                                } catch (err) {
+
+                                    console.error(err);
+
+                                    showToast('导入处理过程中发生错误', 'error');
+
+                                } finally {
+
+                                    setIsSubmitting(false);
+
+                                    onRefreshUsers(); // Refresh to show updates
+
                                 }
-                                await onUpdateDictionary(key, finalItems);
+
+                            },
+
+                            importTabMode === 'overwrite'
+
+                        );
+
+                    } catch (err) {
+
+                        showToast('解析文件失败，请确保格式正确', 'error');
+
+                    } finally {
+
+                        e.target.value = '';
+
+                    }
+
+                };
+
+        if (file.name.endsWith('.xlsx')) {
+            // Handle Excel Import
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const data = new Uint8Array(event.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+
+                let mappedData: any = [];
+
+                if (type === 'projects') {
+                    // Map back to English keys for Projects
+                    mappedData = json.map((row: any) => {
+                        const project: any = {};
+                        Object.entries(PROJECT_FIELD_MAPPING).forEach(([cnHeader, enKey]) => {
+                            if (row[cnHeader] !== undefined) {
+                                if (enKey === 'annualDataJson') {
+                                    try {
+                                        project.annualData = JSON.parse(row[cnHeader]);
+                                    } catch {
+                                        project.annualData = [];
+                                    }
+                                } else {
+                                    project[enKey] = row[cnHeader];
+                                }
                             }
-                        } else if (type === 'users') {
-                            for (const user of (importedData as User[])) {
-                                if (user.id) await updateUser(user);
-                                else await createUser(user);
+                        });
+                        if (project.completionStatus === 'TRUE' || project.completionStatus === true) project.completionStatus = true;
+                        if (project.completionStatus === 'FALSE' || project.completionStatus === false) project.completionStatus = false;
+                        return project as Project;
+                    });
+                } else if (type === 'users') {
+                    // Map back to English keys for Users
+                    mappedData = json.map((row: any) => {
+                        const user: any = {};
+                        Object.entries(USER_FIELD_MAPPING).forEach(([cnHeader, enKey]) => {
+                            if (row[cnHeader] !== undefined) {
+                                user[enKey] = row[cnHeader];
                             }
-                            onRefreshUsers();
-                        } else if (type === 'projects') {
-                            for (const proj of (importedData as Project[])) {
-                                if (proj.id && importTabMode === 'overwrite') await updateProject(proj);
-                                else await createProject(proj);
-                            }
+                        });
+                        return user as User;
+                    });
+                } else if (type === 'dictionaries') {
+                    // Reconstruct Dictionary Object from Flattened List
+                    const dictMap: SystemDictionary = {};
+                    json.forEach((row: any) => {
+                        const type = row["字典类型"];
+                        const label = row["选项名称"];
+                        const bgColor = row["背景颜色"];
+                        const textColor = row["文字颜色"];
+
+                        if (type && label) {
+                            if (!dictMap[type]) dictMap[type] = [];
+                            dictMap[type].push({ label, bgColor: bgColor || 'bg-gray-100', textColor: textColor || 'text-gray-800' });
                         }
-                        showToast(`${modeText} 导入成功`);
-                    },
-                    importTabMode === 'overwrite'
-                );
-            } catch (err) {
-                showToast('解析文件失败，请确保格式正确', 'error');
-            } finally {
-                setIsSubmitting(false);
-                e.target.value = '';
-            }
-        };
-        reader.readAsText(file);
+                    });
+                    mappedData = dictMap; // Special case: this is an object, not an array of items directly iterable in the same way as others
+                }
+
+                processImport(mappedData);
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            // Handle JSON Import
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target?.result as string);
+                    processImport(importedData);
+                } catch (e) {
+                    showToast('JSON 解析失败', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
     };
 
     // Dictionary State
@@ -557,18 +893,21 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
                          <div className="p-5 border rounded-xl bg-muted/10 flex flex-col justify-between">
                             <div>
                                 <div className="flex items-center gap-2 mb-2">
-                                    <FileJson className="h-5 w-5 text-blue-500" />
+                                    <FileSpreadsheet className="h-5 w-5 text-blue-500" />
                                     <p className="font-bold">项目数据表</p>
                                 </div>
-                                <p className="text-xs text-muted-foreground mb-4">包含所有项目的前期、收款、进度及完成状态数据。</p>
+                                <p className="text-xs text-muted-foreground mb-4">包含所有项目的前期、收款、进度及完成状态数据。支持 Excel 格式。</p>
                             </div>
                             <div className="space-y-2">
+                                 <button onClick={() => handleDownloadTemplate('projects')} className="w-full flex items-center justify-center gap-2 border bg-card text-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors">
+                                    <File className="h-4 w-4" /> 下载模板
+                                 </button>
                                  <button onClick={() => handleExportData('projects')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
-                                    <Download className="h-4 w-4" /> 导出 JSON
+                                    <Download className="h-4 w-4" /> 导出 Excel
                                  </button>
                                  <label className={`w-full flex items-center justify-center gap-2 border px-3 py-2 rounded-lg text-sm font-medium transition-colors ${!hasExported ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'bg-card hover:bg-muted cursor-pointer'}`}>
-                                    <Upload className="h-4 w-4" /> 导入数据
-                                    <input type="file" accept=".json" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('projects', e)} />
+                                    <Upload className="h-4 w-4" /> 导入 Excel/JSON
+                                    <input type="file" accept=".json, .xlsx" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('projects', e)} />
                                  </label>
                             </div>
                          </div>
@@ -580,15 +919,18 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
                                     <BookOpen className="h-5 w-5 text-green-500" />
                                     <p className="font-bold">系统字典表</p>
                                 </div>
-                                <p className="text-xs text-muted-foreground mb-4">包含地区、类别、三审类型、标签颜色等所有配置项。</p>
+                                <p className="text-xs text-muted-foreground mb-4">包含地区、类别、三审类型、标签颜色等所有配置项。支持 Excel 格式。</p>
                             </div>
                             <div className="space-y-2">
+                                 <button onClick={() => handleDownloadTemplate('dictionaries')} className="w-full flex items-center justify-center gap-2 border bg-card text-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors">
+                                    <File className="h-4 w-4" /> 下载模板
+                                 </button>
                                  <button onClick={() => handleExportData('dictionaries')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
-                                    <Download className="h-4 w-4" /> 导出 JSON
+                                    <Download className="h-4 w-4" /> 导出 Excel
                                  </button>
                                  <label className={`w-full flex items-center justify-center gap-2 border px-3 py-2 rounded-lg text-sm font-medium transition-colors ${!hasExported ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'bg-card hover:bg-muted cursor-pointer'}`}>
-                                    <Upload className="h-4 w-4" /> 导入数据
-                                    <input type="file" accept=".json" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('dictionaries', e)} />
+                                    <Upload className="h-4 w-4" /> 导入 Excel/JSON
+                                    <input type="file" accept=".json, .xlsx" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('dictionaries', e)} />
                                  </label>
                             </div>
                          </div>
@@ -600,15 +942,18 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
                                     <UserIcon className="h-5 w-5 text-purple-500" />
                                     <p className="font-bold">用户与权限表</p>
                                 </div>
-                                <p className="text-xs text-muted-foreground mb-4">包含所有账号、部门分配、角色权限及登录密码数据。</p>
+                                <p className="text-xs text-muted-foreground mb-4">包含所有账号、部门分配、角色权限及登录密码数据。支持 Excel 格式。</p>
                             </div>
                             <div className="space-y-2">
+                                 <button onClick={() => handleDownloadTemplate('users')} className="w-full flex items-center justify-center gap-2 border bg-card text-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted transition-colors">
+                                    <File className="h-4 w-4" /> 下载模板
+                                 </button>
                                  <button onClick={() => handleExportData('users')} className="w-full flex items-center justify-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
-                                    <Download className="h-4 w-4" /> 导出 JSON
+                                    <Download className="h-4 w-4" /> 导出 Excel
                                  </button>
                                  <label className={`w-full flex items-center justify-center gap-2 border px-3 py-2 rounded-lg text-sm font-medium transition-colors ${!hasExported ? 'opacity-50 cursor-not-allowed bg-gray-100' : 'bg-card hover:bg-muted cursor-pointer'}`}>
-                                    <Upload className="h-4 w-4" /> 导入数据
-                                    <input type="file" accept=".json" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('users', e)} />
+                                    <Upload className="h-4 w-4" /> 导入 Excel/JSON
+                                    <input type="file" accept=".json, .xlsx" disabled={!hasExported} className="hidden" onChange={(e) => handleImportData('users', e)} />
                                  </label>
                             </div>
                          </div>
