@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -51,7 +52,7 @@ app.get('/api/projects', async (req, res) => {
     if (department) conditions.push(eq(projects.department, department as string));
     const data = await db.query.projects.findMany({ orderBy: [desc(projects.updatedAt)], where: conditions.length > 0 ? and(...conditions) : undefined });
     res.json(data);
-  } catch (error) { res.status(500).json({ error: 'Failed' }); }
+  } catch (error) { res.status(500).json({ error: '获取项目失败' }); }
 });
 
 app.post('/api/projects', async (req, res) => {
@@ -59,21 +60,27 @@ app.post('/api/projects', async (req, res) => {
     const newProject = { ...req.body, id: req.body.id || nanoid(10) };
     const result = await db.insert(projects).values(newProject).returning();
     res.json(result[0]);
-  } catch (error) { res.status(500).json({ error: 'Failed' }); }
+  } catch (error: any) { 
+    console.error('Create Project Error:', error);
+    res.status(500).json({ error: error.message || '创建项目失败' }); 
+  }
 });
 
 app.put('/api/projects/:id', async (req, res) => {
   try {
     const result = await db.update(projects).set({ ...req.body, updatedAt: new Date() }).where(eq(projects.id, req.params.id)).returning();
     res.json(result[0]);
-  } catch (error) { res.status(500).json({ error: 'Failed' }); }
+  } catch (error: any) { 
+    console.error('Update Project Error:', error);
+    res.status(500).json({ error: error.message || '更新项目失败' }); 
+  }
 });
 
 app.delete('/api/projects/:id', async (req, res) => {
   try {
     await db.delete(projects).where(eq(projects.id, req.params.id));
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: 'Failed' }); }
+  } catch (error) { res.status(500).json({ error: '删除项目失败' }); }
 });
 
 // 2. 用户
@@ -81,7 +88,7 @@ app.get('/api/users', async (req, res) => {
   try {
     const data = await db.query.users.findMany({ columns: { id: true, name: true, role: true, department: true, email: true, status: true, createdAt: true, updatedAt: true } });
     res.json(data);
-  } catch (error) { res.status(500).json({ error: 'Failed' }); }
+  } catch (error) { res.status(500).json({ error: '获取用户失败' }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -90,14 +97,14 @@ app.post('/api/auth/login', async (req, res) => {
     if (user && user.password === password) {
         const { password: _, ...info } = user;
         res.json(info);
-    } else res.status(401).json({ error: 'Invalid' });
+    } else res.status(401).json({ error: '用户名或密码错误' });
 });
 
 app.put('/api/users/:id', async (req, res) => {
     try {
         const result = await db.update(users).set({ ...req.body, updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
         res.json(result[0]);
-    } catch (error) { res.status(500).json({ error: 'Failed' }); }
+    } catch (error: any) { res.status(500).json({ error: error.message || '更新用户失败' }); }
 });
 
 // 3. 字典与日志
@@ -148,7 +155,6 @@ app.post('/api/ai/chat', async (req, res) => {
             where: conditions.length > 0 ? and(...conditions) : undefined
         });
 
-        // 生成简要统计，辅助 AI 准确回答数量问题
         stats = {
             总计: filteredProjects.length,
             已完成项目: filteredProjects.filter(p => p.stage === '已完成项目').length,
@@ -208,8 +214,8 @@ ${JSON.stringify(projectContext)}
     const data = await response.json();
     if (data.error) throw new Error(data.error.message);
     res.json(data.choices[0].message);
-  } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : 'AI Error' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'AI Error' });
   }
 });
 

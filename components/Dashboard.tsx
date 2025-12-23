@@ -4,7 +4,11 @@ import {
   PieChart, Pie, Cell, Legend, ComposedChart, Area
 } from 'recharts';
 import { Project, ProjectStage, AnnualData } from '../types';
-import { Wallet, TrendingUp, FileText, Target, PieChart as PieIcon, BarChart3, Building, Calendar, Filter, X, CheckSquare, Square, Maximize2, GripHorizontal } from 'lucide-react';
+import { 
+  Wallet, TrendingUp, FileText, Target, PieChart as PieIcon, BarChart3, 
+  Building, Calendar, Filter, X, CheckSquare, Square, Maximize2, 
+  GripHorizontal, HelpCircle, Minimize2 
+} from 'lucide-react';
 
 interface DashboardProps {
     selectedYear: number;
@@ -13,6 +17,72 @@ interface DashboardProps {
     selectedQuarter: string;
     projects: Project[];
 }
+
+const formatWan = (val: number) => `¥${(val / 10000).toFixed(0)}w`;
+
+const CompactKPICard = ({ title, value, target, color, formula }: any) => (
+    <div className={`rounded-xl border bg-card p-4 shadow-sm border-t-4 transition-all hover:shadow-md relative group ${color === 'indigo' ? 'border-t-indigo-500' : 'border-t-emerald-500'}`}>
+        <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{title}</p>
+            <div className="relative group/tooltip">
+                <HelpCircle className="h-3 w-3 text-gray-300 hover:text-primary cursor-help transition-colors" />
+                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-900 text-white text-[9px] rounded-lg opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-white/10 leading-relaxed font-bold">
+                    <div className="text-primary mb-1 uppercase tracking-tighter">[计算公式]</div>
+                    {formula}
+                </div>
+            </div>
+        </div>
+        <h3 className={`text-xl font-black ${color === 'indigo' ? 'text-indigo-700' : 'text-emerald-700'} tracking-tight`}>¥{(value / 10000).toFixed(0)}w</h3>
+        <div className="flex justify-between items-center mt-3 pt-2 border-t border-dashed text-[9px]"><span className="text-gray-400 font-medium">目标: {(target / 10000).toFixed(0)}w</span><span className={`font-black ${value >= target ? 'text-emerald-600' : 'text-orange-500'}`}>{((value / (target || 1)) * 100).toFixed(0)}%</span></div>
+    </div>
+);
+
+const ChartCard = ({ title, icon, children, fields, filters, options, labels, onToggle, isOpen, onOpen, onZoom, size, onResize, onDragStart, onDragOver, onDragEnd, isDragging, isDragOver }: any) => {
+    const activeCount = Object.values(filters).flat().length;
+    const cardRef = useRef<HTMLDivElement>(null);
+    const [isResizing, setIsResizing] = useState(false);
+    const startResize = (e: React.MouseEvent) => {
+        e.preventDefault(); setIsResizing(true);
+        const startX = e.pageX, startY = e.pageY, startW = cardRef.current?.offsetWidth || 0, startH = cardRef.current?.offsetHeight || 0;
+        const onMouseMove = (me: MouseEvent) => onResize(`${startW + (me.pageX - startX)}px`, startH + (me.pageY - startY));
+        const onMouseUp = () => { setIsResizing(false); document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
+        document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
+    };
+    return (
+        <div draggable onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} className={`rounded-xl border bg-card shadow-sm flex flex-col relative group transition-all duration-300 ${isDragging ? 'opacity-20 scale-95 border-dashed border-primary shadow-none' : 'opacity-100'} ${isDragOver ? 'ring-2 ring-primary ring-offset-4' : ''} ${!isDragging && !isResizing ? 'hover:shadow-xl hover:-translate-y-1' : ''} ${isOpen ? 'z-[50]' : 'z-10'}`} ref={cardRef} style={{ width: size?.w || 'calc(33.333% - 11px)', height: size?.h || 300, minWidth: '300px', minHeight: '250px' }}>
+            <div className="p-3 pb-2 flex items-center justify-between border-b bg-muted/5 shrink-0 cursor-grab active:cursor-grabbing group/header">
+                <div className="flex items-center gap-2">
+                    <GripHorizontal className={`h-3.5 w-3.5 transition-colors ${isDragging ? 'text-primary' : 'text-gray-300 group-hover/header:text-primary'}`} />
+                    <div className="p-1 bg-primary/10 rounded text-primary">{icon}</div>
+                    <h3 className="font-bold text-[13px] tracking-tight text-gray-700">{title}</h3>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={onZoom} className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-primary transition-colors"><Maximize2 className="h-3.5 w-3.5"/></button>
+                    <button onClick={onOpen} className={`p-1.5 rounded-md border transition-all ${activeCount > 0 ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-gray-400 border-gray-200 hover:text-primary'}`}><Filter className="h-3.5 w-3.5" /></button>
+                </div>
+            </div>
+            {isOpen && (
+                <div className="absolute top-12 right-2 left-2 z-[50] bg-white border rounded-xl shadow-2xl p-4 space-y-4 animate-in zoom-in-95 ring-1 ring-black/5">
+                    <div className="flex justify-between items-center border-b pb-2"><span className="text-[10px] font-black text-primary uppercase">看板配置</span><button onClick={onOpen}><X className="h-3.5 w-3.5 text-gray-400"/></button></div>
+                    <div className="max-h-[300px] overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+                        {fields.map((f: string) => (
+                            <div key={f} className="space-y-2">
+                                <p className="text-[9px] font-black text-gray-400 uppercase">{labels[f]}</p>
+                                <div className="flex flex-wrap gap-1.5">{options[f]?.map((v: string) => {
+                                    const sel = (filters[f] || []).includes(v);
+                                    return <button key={v} onClick={() => onToggle(f, v)} className={`px-2 py-0.5 rounded-md text-[9px] font-bold border flex items-center gap-1 transition-all ${sel ? 'bg-primary text-white border-primary shadow-sm' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-primary'}`}>{sel ? <CheckSquare className="h-2.5 w-2.5" /> : <Square className="h-2.5 w-2.5" />}{v}</button>;
+                                })}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <div className="p-4 flex-1 relative overflow-hidden">{children}</div>
+            <div onMouseDown={startResize} className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-end justify-end p-1 group-hover:opacity-100 opacity-0 transition-opacity"><div className="w-2 h-2 border-r-2 border-b-2 border-gray-300 rounded-br-sm" /></div>
+            {isResizing && <div className="absolute inset-0 z-[60] bg-primary/5 border-2 border-primary/20 border-dashed rounded-xl" />}
+        </div>
+    );
+};
 
 const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, projects }) => {
   const [activeTab, setActiveTab] = useState<'financial' | 'early'>('financial');
@@ -107,6 +177,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   const getAnalytics = (customFilters?: Record<string, Record<string, string[]>>) => {
     const filtersToUse = customFilters || localFilters;
     const yearProjects = projects.filter(p => {
+        const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
+        if (hasNoYearInfo) return true;
         const hasAnnualData = p.annualData?.some(d => d.year === selectedYear);
         const isEarlyForYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
         const isSignedThisYear = p.signingDate?.startsWith(selectedYear.toString());
@@ -177,7 +249,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   }, [projects]);
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
-  const formatWan = (val: number) => `¥${(val / 10000).toFixed(0)}w`;
   const fieldLabels: Record<string, string> = { department: '部门', region: '地区', source: '来源', category: '类别', threeReviewType: '三审', probability: '可能性' };
 
   const renderChartContent = (key: string, height: number, isZoomed = false) => {
@@ -228,11 +299,34 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
             {activeTab === 'financial' ? (
               <>
                   <div className="w-full grid gap-4 grid-cols-2 lg:grid-cols-4 mb-2">
-                      <CompactKPICard title="年度合同" value={analytics.totalContract} target={analytics.contractTarget} color="indigo" />
-                      <CompactKPICard title="年度收款" value={analytics.totalCollected} target={analytics.collectionTarget} color="emerald" />
-                      <div className="col-span-2 rounded-xl border bg-card p-4 flex items-center gap-6 shadow-sm border-b-4 border-b-primary/30">
+                      <CompactKPICard 
+                        title="年度合同" 
+                        value={analytics.totalContract} 
+                        target={analytics.contractTarget} 
+                        color="indigo" 
+                        formula="Σ (年度数据中 [当前年份] 的合同额)" 
+                      />
+                      <CompactKPICard 
+                        title="年度收款" 
+                        value={analytics.totalCollected} 
+                        target={analytics.collectionTarget} 
+                        color="emerald" 
+                        formula="Σ (年度数据中 [当前年份] 的已收款额)" 
+                      />
+                      <div className="col-span-2 rounded-xl border bg-card p-4 flex items-center gap-6 shadow-sm border-b-4 border-b-primary/30 relative group">
                           <div className="flex-1">
-                              <div className="flex justify-between text-[10px] font-black uppercase text-gray-400 mb-1"><span>回款进度</span><span className="text-primary">{((analytics.totalCollected / (analytics.collectionTarget || 1)) * 100).toFixed(1)}%</span></div>
+                              <div className="flex justify-between text-[10px] font-black uppercase text-gray-400 mb-1">
+                                  <div className="flex items-center gap-1">
+                                      <span>回款进度</span>
+                                      <div className="relative group/tooltip">
+                                          <HelpCircle className="h-3 w-3 text-gray-300 cursor-help" />
+                                          <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-white text-[9px] rounded-lg opacity-0 group-hover/tooltip:opacity-100 transition-opacity z-50 pointer-events-none">
+                                              公式：(年度收款 / 年度收款目标) × 100%
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <span className="text-primary">{((analytics.totalCollected / (analytics.collectionTarget || 1)) * 100).toFixed(1)}%</span>
+                              </div>
                               <div className="h-2.5 bg-muted rounded-full overflow-hidden border"><div className="h-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-1000" style={{ width: `${Math.min(100, (analytics.totalCollected / (analytics.collectionTarget || 1) * 100))}%` }}></div></div>
                           </div>
                       </div>
@@ -250,7 +344,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         </div>
       </div>
 
-      {/* Zoom Modal - MOVED OUTSIDE OF space-y-6 container to fix top margin issue */}
       {zoomedChart && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-xl animate-in fade-in duration-300" onClick={() => setZoomedChart(null)}>
               <div className="bg-background w-[95vw] h-[90vh] rounded-[2.5rem] shadow-2xl border flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative" onClick={(e) => e.stopPropagation()}>
@@ -280,61 +373,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       )}
     </>
   );
-};
-
-const CompactKPICard = ({ title, value, target, color }: any) => (
-    <div className={`rounded-xl border bg-card p-4 shadow-sm border-t-4 ${color === 'indigo' ? 'border-t-indigo-500' : 'border-t-emerald-500'}`}>
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
-        <h3 className={`text-xl font-black ${color === 'indigo' ? 'text-indigo-700' : 'text-emerald-700'} tracking-tight`}>¥{(value / 10000).toFixed(0)}w</h3>
-        <div className="flex justify-between items-center mt-3 pt-2 border-t border-dashed text-[9px]"><span className="text-gray-400 font-medium">目标: {(target / 10000).toFixed(0)}w</span><span className={`font-black ${value >= target ? 'text-emerald-600' : 'text-orange-500'}`}>{((value / (target || 1)) * 100).toFixed(0)}%</span></div>
-    </div>
-);
-
-const ChartCard = ({ title, icon, children, fields, filters, options, labels, onToggle, isOpen, onOpen, onZoom, size, onResize, onDragStart, onDragOver, onDragEnd, isDragging, isDragOver }: any) => {
-    const activeCount = Object.values(filters).flat().length;
-    const cardRef = useRef<HTMLDivElement>(null);
-    const [isResizing, setIsResizing] = useState(false);
-    const startResize = (e: React.MouseEvent) => {
-        e.preventDefault(); setIsResizing(true);
-        const startX = e.pageX, startY = e.pageY, startW = cardRef.current?.offsetWidth || 0, startH = cardRef.current?.offsetHeight || 0;
-        const onMouseMove = (me: MouseEvent) => onResize(`${startW + (me.pageX - startX)}px`, startH + (me.pageY - startY));
-        const onMouseUp = () => { setIsResizing(false); document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
-        document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
-    };
-    return (
-        <div draggable onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} className={`rounded-xl border bg-card shadow-sm flex flex-col relative group transition-all duration-300 ${isDragging ? 'opacity-20 scale-95 border-dashed border-primary shadow-none' : 'opacity-100'} ${isDragOver ? 'ring-2 ring-primary ring-offset-4' : ''} ${!isDragging && !isResizing ? 'hover:shadow-xl hover:-translate-y-1' : ''}`} ref={cardRef} style={{ width: size?.w || 'calc(33.333% - 11px)', height: size?.h || 300, minWidth: '300px', minHeight: '250px' }}>
-            <div className="p-3 pb-2 flex items-center justify-between border-b bg-muted/5 shrink-0 cursor-grab active:cursor-grabbing group/header">
-                <div className="flex items-center gap-2">
-                    <GripHorizontal className={`h-3.5 w-3.5 transition-colors ${isDragging ? 'text-primary' : 'text-gray-300 group-hover/header:text-primary'}`} />
-                    <div className="p-1 bg-primary/10 rounded text-primary">{icon}</div>
-                    <h3 className="font-bold text-[13px] tracking-tight text-gray-700">{title}</h3>
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={onZoom} className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-primary transition-colors"><Maximize2 className="h-3.5 w-3.5"/></button>
-                    <button onClick={onOpen} className={`p-1.5 rounded-md border transition-all ${activeCount > 0 ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-gray-400 border-gray-200 hover:text-primary'}`}><Filter className="h-3.5 w-3.5" /></button>
-                </div>
-            </div>
-            {isOpen && (
-                <div className="absolute top-12 right-2 left-2 z-[50] bg-white border rounded-xl shadow-2xl p-4 space-y-4 animate-in zoom-in-95 ring-1 ring-black/5">
-                    <div className="flex justify-between items-center border-b pb-2"><span className="text-[10px] font-black text-primary uppercase">看板配置</span><button onClick={onOpen}><X className="h-3.5 w-3.5 text-gray-400"/></button></div>
-                    <div className="max-h-[300px] overflow-y-auto space-y-4 pr-1 custom-scrollbar">
-                        {fields.map((f: string) => (
-                            <div key={f} className="space-y-2">
-                                <p className="text-[9px] font-black text-gray-400 uppercase">{labels[f]}</p>
-                                <div className="flex flex-wrap gap-1.5">{options[f]?.map((v: string) => {
-                                    const sel = (filters[f] || []).includes(v);
-                                    return <button key={v} onClick={() => onToggle(f, v)} className={`px-2 py-0.5 rounded-md text-[9px] font-bold border flex items-center gap-1 transition-all ${sel ? 'bg-primary text-white border-primary shadow-sm' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-primary'}`}>{sel ? <CheckSquare className="h-2.5 w-2.5" /> : <Square className="h-2.5 w-2.5" />}{v}</button>;
-                                })}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-            <div className="p-4 flex-1 relative overflow-hidden">{children}</div>
-            <div onMouseDown={startResize} className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-end justify-end p-1 group-hover:opacity-100 opacity-0 transition-opacity"><div className="w-2 h-2 border-r-2 border-b-2 border-gray-300 rounded-br-sm" /></div>
-            {isResizing && <div className="absolute inset-0 z-[60] bg-primary/5 border-2 border-primary/20 border-dashed rounded-xl" />}
-        </div>
-    );
 };
 
 export default Dashboard;

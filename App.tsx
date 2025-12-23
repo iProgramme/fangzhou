@@ -214,11 +214,12 @@ const App: React.FC = () => {
   const filteredProjects = React.useMemo(() => {
     return projects.filter(p => {
       // 1. Year Filter
+      const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
       const hasYearlyData = p.annualData?.some(d => d.year === selectedYear);
       const isEarlyThisYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
       const signedThisYear = p.signingDate?.startsWith(selectedYear.toString());
       
-      const matchesYear = hasYearlyData || isEarlyThisYear || signedThisYear;
+      const matchesYear = hasNoYearInfo || hasYearlyData || isEarlyThisYear || signedThisYear;
       if (!matchesYear) return false;
 
       // 2. Quarter Filter

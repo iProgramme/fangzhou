@@ -148,8 +148,9 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
           <table className="w-full text-sm text-left">
             <thead className="sticky top-0 bg-secondary/95 backdrop-blur-sm z-10">
               <tr className="border-b">
+                <th className="h-10 px-4 font-black text-muted-foreground whitespace-nowrap text-sm uppercase tracking-wider">项目ID</th>
                 {sortedColumnDefs.map((col) => {
-                    if (col.key !== 'actions' && !visibleColumns.includes(col.key as string)) return null;
+                    if (col.key === 'id' || (col.key !== 'actions' && !visibleColumns.includes(col.key as string))) return null;
                     let header = col.header; if (col.key === 'annualContract') header = `${selectedYear} 合同`; if (col.key === 'annualCollection') header = `${selectedYear} 收款`;
                     const isFilterable = col.inputType === 'select' && col.dictKey && dictionaries?.[col.dictKey];
                     const activeFilter = columnFilters[col.key as string];
@@ -166,8 +167,9 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
               {paginatedData.length === 0 ? (<tr><td colSpan={columns.length + 1} className="p-16 text-center text-muted-foreground font-bold italic">No Data.</td></tr>) : (
                 paginatedData.map((row) => (
                   <tr key={row.id} className="group hover:bg-muted/40 transition-colors">
+                    <td className="py-2 px-4 whitespace-nowrap"><span className="font-mono text-[10px] font-black px-2 py-1 rounded bg-muted/50 text-muted-foreground border border-border/50">{row.id}</span></td>
                     {sortedColumnDefs.map((col) => {
-                        if (col.key !== 'actions' && !visibleColumns.includes(col.key as string)) return null;
+                        if (col.key === 'id' || (col.key !== 'actions' && !visibleColumns.includes(col.key as string))) return null;
                         let cell: React.ReactNode;
                         if (col.key === 'annualContract' || col.key === 'annualCollection') cell = formatMoney(row.annualData?.find(d => d.year === selectedYear)?.[col.key === 'annualContract' ? 'contractAmount' : 'collectedAmount']);
                         else if (col.render) cell = col.render(row[col.key as keyof Project], row);

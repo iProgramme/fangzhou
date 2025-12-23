@@ -79,21 +79,63 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
                         const row: any = data[i];
                         try {
                             if (type === 'projects') {
-                                const p: any = {}; Object.entries(PROJECT_FIELD_MAPPING).forEach(([cn, en]) => { if (en === 'annualDataJson') try { p.annualData = JSON.parse(row[cn]); } catch { p.annualData=[]; } else p[en] = row[cn]; });
-                                if (!VALID_STAGES.includes(p.stage)) throw new Error('阶段错误');
-                                const pid = String(p.id||'').trim(); const exists = pid ? curProjs.find(ex => String(ex.id) === pid) : null;
-                                const clean = { ...p, id: pid||undefined, totalAmount: safeNumber(p.totalAmount), instituteAmount: safeNumber(p.instituteAmount), deptAmount: safeNumber(p.deptAmount), collectedAmount: safeNumber(p.collectedAmount), completionStatus: safeBoolean(p.completionStatus) };
-                                if (exists) { await updateProject(clean as Project); up++; uIds.push(pid); } else { const res = await createProject(clean); s++; aIds.push(res.id); }
+                                const p: any = {}; 
+                                Object.entries(PROJECT_FIELD_MAPPING).forEach(([cn, en]) => { 
+                                    if (en === 'annualDataJson') {
+                                        try { p.annualData = row[cn] ? JSON.parse(row[cn]) : []; } catch { p.annualData=[]; } 
+                                    } else {
+                                        p[en] = row[cn]; 
+                                    }
+                                });
+                                
+                                // 补全必填项默认值，使同步更灵活
+                                if (!p.name) p.name = '未命名项目';
+                                if (!p.stage) p.stage = '前期项目跟进';
+                                if (!p.department) p.department = '综合组（汤、黄）';
+                                
+                                const pid = String(p.id||'').trim(); 
+                                const exists = pid ? curProjs.find(ex => String(ex.id) === pid) : null;
+                                const clean = { 
+                                    ...p, 
+                                    id: pid||undefined, 
+                                    totalAmount: safeNumber(p.totalAmount), 
+                                    instituteAmount: safeNumber(p.instituteAmount), 
+                                    deptAmount: safeNumber(p.deptAmount), 
+                                    collectedAmount: safeNumber(p.collectedAmount), 
+                                    completionStatus: safeBoolean(p.completionStatus) 
+                                };
+                                
+                                if (exists) { 
+                                    await updateProject(clean as Project); 
+                                    up++; 
+                                    uIds.push(pid); 
+                                } else { 
+                                    const res = await createProject(clean); 
+                                    s++; 
+                                    aIds.push(res.id); 
+                                }
                             } else if (type === 'users') {
-                                const u: any = {}; Object.entries(USER_FIELD_MAPPING).forEach(([cn, en]) => u[en] = row[cn]);
+                                const u: any = {}; 
+                                Object.entries(USER_FIELD_MAPPING).forEach(([cn, en]) => u[en] = row[cn]);
+                                if (!u.name) u.name = '新用户';
+                                if (!u.role) u.role = 'user';
                                 const exists = users.find(ex => String(ex.id) === String(u.id));
                                 exists ? (await updateUser(u), up++, uIds.push(u.id)) : (await createUser(u), s++, aIds.push(u.id));
                             }
-                        } catch(err: any) { er++; fIds.push({id: row["项目ID"]||'未知', reason: err.message}); }
-                        setImportProgress(Math.round(((i+1)/total)*100)); setImportStats({ success: s, updated: up, error: er, total, processed: i+1 });
+                        } catch(err: any) { 
+                            er++; 
+                            const errorDetail = { 
+                                id: row["项目ID"] || row["项目名称"] || row["用户ID"] || `第 ${i+1} 行`, 
+                                reason: err.message || '未知错误' 
+                            };
+                            fIds.push(errorDetail); 
+                        }
+                        setImportProgress(Math.round(((i+1)/total)*100)); 
+                        setImportStats({ success: s, updated: up, error: er, total, processed: i+1 });
                     }
                     const res = { time: new Date().toLocaleString(), success: s, updated: up, error: er, addedIds: aIds, updatedIds: uIds, failedIds: fIds };
                     setLastSyncInfo(res); localStorage.setItem('last_sync', JSON.stringify(res));
+                    showToast(`同步完成！新增 ${s} 条，更新 ${up} 条，失败 ${er} 条`);
                 } catch(err:any) { showToast(err.message, 'error'); }
                 finally { setIsSubmitting(false); onRefreshUsers(); e.target.value = ''; }
             });
@@ -109,9 +151,24 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
     const handleExportData = async (t: string) => {
         try {
             const data = t === 'projects' ? await fetchProjects() : users;
-            const ed = data.map((p: any) => { const r: any = {}; const m = t==='projects'?PROJECT_FIELD_MAPPING:USER_FIELD_MAPPING; Object.entries(m).forEach(([cn, en]) => { if(en==='annualDataJson') r[cn]=JSON.stringify(p.annualData||[]); else r[cn]=p[en]; }); return r; });
-            XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.json_to_sheet(ed), "Data"), `export_${t}.xlsx`); showToast('导出成功');
-        } catch { showToast('导出失败', 'error'); }
+            const ed = data.map((p: any) => { 
+                const r: any = {}; 
+                const m = t==='projects'?PROJECT_FIELD_MAPPING:USER_FIELD_MAPPING; 
+                Object.entries(m).forEach(([cn, en]) => { 
+                    if(en==='annualDataJson') r[cn]=JSON.stringify(p.annualData||[]); 
+                    else r[cn]=p[en]; 
+                }); 
+                return r; 
+            });
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(ed);
+            XLSX.utils.book_append_sheet(wb, ws, "Data");
+            XLSX.writeFile(wb, `export_${t}.xlsx`); 
+            showToast('导出成功');
+        } catch (error) { 
+            console.error('Export error:', error);
+            showToast('导出失败', 'error'); 
+        }
     };
 
     const applyPresetTheme = async (id: string) => { if (id === 'default') onUpdateThemeCode(''); else { try { const css = await fetchThemeCSS(id); onUpdateThemeCode(css); showToast(`应用成功`); } catch { showToast('失败', 'error'); } } };
@@ -284,8 +341,33 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
                                 {lastSyncInfo && (<div className="bg-muted p-2 rounded-2xl border border-dashed flex items-center gap-2 text-sm font-bold text-primary"><History className="h-4 w-4" /><span>{lastSyncInfo.time} | 新+{lastSyncInfo.success} 更+{lastSyncInfo.updated} 失-{lastSyncInfo.error}</span></div>)}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-primary/5 border border-primary/10 p-4 rounded-xl flex gap-4 text-sm font-bold"><Info className="h-5 w-5 text-primary shrink-0 mt-1" /><div className="space-y-1"><p className="text-primary uppercase">UPSERT 规则</p><p className="text-muted-foreground">ID自动匹配：存在更新，不存在创建。其余不动。</p></div></div>
-                                <div className="bg-primary/10 border border-primary/20 p-4 rounded-xl flex gap-4 text-sm font-bold leading-relaxed"><AlertTriangle className="h-5 w-5 text-primary shrink-0 mt-1" /><p className="text-muted-foreground">请务必下载并使用系统最新【Excel 模板】进行填报，确保数据解析 100% 成功。</p></div>
+                                <div className="bg-primary/5 border border-primary/10 p-5 rounded-2xl flex flex-col gap-3">
+                                    <div className="flex items-center gap-2 text-primary font-black uppercase tracking-widest text-xs">
+                                        <BookOpen className="h-4 w-4" /> 核心字段：年度数据 (JSON) 指南
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                            此字段决定项目在哪个年份显示及金额。请务必使用以下格式：
+                                        </p>
+                                        <pre className="bg-white/50 p-3 rounded-xl border border-primary/10 text-[10px] font-mono text-primary overflow-x-auto">
+                                            {"[\n  {\n    \"year\": 2025,\n    \"contractAmount\": 10000,\n    \"collectedAmount\": 5000\n  }\n]"}
+                                        </pre>
+                                        <p className="text-[10px] text-muted-foreground italic">
+                                            * 注意：必须是英文双引号，[] 包裹 {}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="bg-primary/10 border border-primary/20 p-5 rounded-2xl flex flex-col gap-3">
+                                    <div className="flex items-center gap-2 text-primary font-black uppercase tracking-widest text-xs">
+                                        <Shield className="h-4 w-4" /> 导入规则说明
+                                    </div>
+                                    <ul className="text-[11px] text-muted-foreground space-y-2 list-disc list-inside">
+                                        <li><strong className="text-foreground">项目ID</strong> 是唯一身份证，系统靠它识别更新。</li>
+                                        <li>如果 ID 已存在：系统将用 Excel 中的内容覆盖现有数据。</li>
+                                        <li>如果 ID 不存在：系统将创建一条全新的项目记录。</li>
+                                        <li>其他字段（如名称、负责人等）均可不填或后续修改。</li>
+                                    </ul>
+                                </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
                                 {[ { t: 'projects', n: '项目数据', c: 'bg-primary' }, { t: 'dictionaries', n: '字典表', c: 'bg-primary/80' }, { t: 'users', n: '用户权限', c: 'bg-primary/60' } ].map(i => (
@@ -298,14 +380,49 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
                         </div>
                         {lastSyncInfo && (
                             <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-1000 px-2">
-                                <h4 className="text-lg font-black">最后一次同步详情追溯</h4>
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                    {[ { t: '新增成功', c: 'primary', ids: lastSyncInfo.addedIds, i: CheckCircle }, { t: '更新成功', c: 'primary', ids: lastSyncInfo.updatedIds, i: RotateCcw }, { t: '同步失败', c: 'destructive', ids: lastSyncInfo.failedIds, i: AlertCircle } ].map(g => (
-                                        <div key={g.t} className={`bg-muted/30 border border-primary/5 rounded-2xl p-4 space-y-3`}>
-                                            <div className="flex items-center justify-between text-sm font-bold uppercase text-muted-foreground"><p className="flex items-center gap-2"><g.i className={`h-4 w-4 text-${g.c}`} /> {g.t}</p><span>{g.ids.length}</span></div>
-                                            <div className="bg-card rounded-xl border max-h-48 overflow-y-auto p-2 space-y-1.5 no-scrollbar">
-                                                {g.ids.length===0 ? (<p className="text-center py-10 text-sm font-bold opacity-20 italic">EMPTY</p>) : 
-                                                g.ids.map((it:any, idx:number) => (<div key={idx} className="bg-muted/30 p-2 rounded-lg flex flex-col border border-transparent hover:border-primary/20 transition-all"><p className="font-mono text-sm font-black truncate">{typeof it === 'string' ? it : it.id}</p>{it.reason && <p className="text-sm text-destructive font-bold">{it.reason}</p>}</div>))}
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-lg font-black uppercase tracking-wider flex items-center gap-2">
+                                        <History className="h-5 w-5 text-primary" /> 同步历史追溯
+                                    </h4>
+                                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-1 rounded-full">{lastSyncInfo.time}</span>
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {[ 
+                                        { t: '新增成功', c: 'primary', bg: 'bg-primary/5', border: 'border-primary/20', iconColor: 'text-primary', ids: lastSyncInfo.addedIds, i: CheckCircle }, 
+                                        { t: '更新成功', c: 'primary', bg: 'bg-primary/5', border: 'border-primary/20', iconColor: 'text-primary', ids: lastSyncInfo.updatedIds, i: RotateCcw }, 
+                                        { t: '同步失败', c: 'destructive', bg: 'bg-red-50', border: 'border-red-200', iconColor: 'text-red-600', ids: lastSyncInfo.failedIds, i: AlertCircle } 
+                                    ].map(g => (
+                                        <div key={g.t} className={`${g.bg} ${g.border} border-2 rounded-[2rem] p-5 space-y-4 shadow-sm`}>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`p-1.5 rounded-lg ${g.iconColor} bg-white shadow-sm`}><g.i className="h-4 w-4" /></div>
+                                                    <span className={`text-sm font-black uppercase tracking-widest ${g.iconColor}`}>{g.t}</span>
+                                                </div>
+                                                <span className={`text-xs font-black px-2.5 py-1 rounded-full bg-white shadow-sm ${g.iconColor}`}>{g.ids.length}</span>
+                                            </div>
+                                            
+                                            <div className="bg-white/60 rounded-2xl border border-white/80 max-h-64 overflow-y-auto p-2 space-y-2 no-scrollbar backdrop-blur-sm">
+                                                {g.ids.length === 0 ? (
+                                                    <div className="py-12 flex flex-col items-center justify-center opacity-20 italic">
+                                                        <CheckCircle className="h-8 w-8 mb-2" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">无数据</p>
+                                                    </div>
+                                                ) : (
+                                                    g.ids.map((it: any, idx: number) => (
+                                                        <div key={idx} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1.5 hover:border-primary/30 transition-all">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[11px] font-black font-mono truncate max-w-[150px]">{typeof it === 'string' ? it : it.id}</span>
+                                                                <span className="text-[9px] text-muted-foreground/50 font-bold uppercase">Record #{idx+1}</span>
+                                                            </div>
+                                                            {it.reason && (
+                                                                <div className="flex items-start gap-1.5 p-2 rounded-lg bg-red-50/50 border border-red-100/50">
+                                                                    <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
+                                                                    <p className="text-[11px] text-red-700 font-bold leading-tight">{it.reason}</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))
+                                                )}
                                             </div>
                                         </div>
                                     ))}

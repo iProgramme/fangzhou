@@ -15,6 +15,7 @@ const renderBoolean = (val: any) => val ? <Check className="h-4 w-4 text-green-6
 
 // 1. 前期项目跟进 (Early Stage)
 export const EARLY_COLUMNS: ColumnDef[] = [
+    { key: 'id', header: '项目ID', inputType: 'text', render: (v) => <span className="font-mono text-[10px] font-bold text-gray-400">{v}</span> },
     { key: 'department', header: '所属部门', inputType: 'select', dictKey: '部门' },
     { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
@@ -46,6 +47,7 @@ export const EARLY_COLUMNS: ColumnDef[] = [
 
 // 2. A2025年底收款计划 (Collection Plan)
 export const COLLECTION_COLUMNS: ColumnDef[] = [
+    { key: 'id', header: '项目ID', inputType: 'text', render: (v) => <span className="font-mono text-[10px] font-bold text-gray-400">{v}</span> },
     { key: 'department', header: '所属部门', inputType: 'select', dictKey: '部门' },
     { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
@@ -59,6 +61,7 @@ export const COLLECTION_COLUMNS: ColumnDef[] = [
 
 // 3. B2025各组项目列表及进度 (Group Progress)
 export const PROGRESS_COLUMNS: ColumnDef[] = [
+    { key: 'id', header: '项目ID', inputType: 'text', render: (v) => <span className="font-mono text-[10px] font-bold text-gray-400">{v}</span> },
     { key: 'department', header: '所属部门', inputType: 'select', dictKey: '部门' },
     { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
@@ -90,6 +93,7 @@ export const PROGRESS_COLUMNS: ColumnDef[] = [
 
 // 4. C已完成项目 (Completed)
 export const COMPLETED_COLUMNS: ColumnDef[] = [
+    { key: 'id', header: '项目ID', inputType: 'text', render: (v) => <span className="font-mono text-[10px] font-bold text-gray-400">{v}</span> },
     { key: 'department', header: '所属部门', inputType: 'select', dictKey: '部门' },
     { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
