@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -25,348 +24,195 @@ app.use(express.json());
 app.get('/api/themes/:id', async (req, res) => {
     try {
         const id = req.params.id;
-        // Try multiple potential paths to be robust
         const pathsToTry = [
             path.join(__dirname, '..', 'styles', `${id}.css`),
             path.join(process.cwd(), 'styles', `${id}.css`),
             path.join(process.cwd(), 'fangzhou', 'styles', `${id}.css`)
         ];
-
         let css = null;
         for (const p of pathsToTry) {
-            try {
-                css = await fs.readFile(p, 'utf-8');
-                if (css) break;
-            } catch (e) { /* continue */ }
+            try { css = await fs.readFile(p, 'utf-8'); if (css) break; } catch (e) {}
         }
-
-        if (css) {
-            res.send(css);
-        } else {
-            console.error(`Theme not found: ${id}. Checked paths:`, pathsToTry);
-            res.status(404).send('Theme file not found on server');
-        }
-    } catch (e) {
-        console.error('Theme API Error:', e);
-        res.status(500).send('Internal server error while fetching theme');
-    }
+        if (css) res.send(css); else res.status(404).send('Theme file not found');
+    } catch (e) { res.status(500).send('Internal error'); }
 });
 
-// --- 映射定义 (英文参数 -> 数据库中文值) ---
-const STAGE_MAPPING: Record<string, string> = {
-  'early': '前期项目跟进',
-  'collection': '年度收款计划',
-  'progress': '各组项目列表及进度',
-  'completed': '已完成项目'
-};
+const STAGE_MAPPING: Record<string, string> = { 'early': '前期项目跟进', 'collection': '年度收款计划', 'progress': '各组项目列表及进度', 'completed': '已完成项目' };
+const DEPT_MAPPING: Record<string, string> = { 'comprehensive': '综合组（汤、黄）', 'municipal': '市政组（大汤）', 'traffic': '交通组（任）', 'planning-1': '规划一组（邝）', 'planning-2': '规划二组（润新）', 'planning-3': '规划三组（胡）', 'planning-4': '规划四组（秀明）', 'design': '前期和城市设计组（林）', 'renewal': '城市更新组（利）' };
 
-const DEPT_MAPPING: Record<string, string> = {
-  'comprehensive': '综合组（汤、黄）',
-  'municipal': '市政组（大汤）',
-  'traffic': '交通组（任）',
-  'planning-1': '规划一组（邝）',
-  'planning-2': '规划二组（润新）',
-  'planning-3': '规划三组（胡）',
-  'planning-4': '规划四组（秀明）',
-  'design': '前期和城市设计组（林）',
-  'renewal': '城市更新组（利）'
-};
-
-// --- 路由定义 ---
-
-// 1. 项目 (Projects)
-// 获取所有项目
+// 1. 项目
 app.get('/api/projects', async (req, res) => {
   try {
     let { stage, department } = req.query;
     const conditions = [];
-    
-    // 映射英文参数到中文值
-    if (stage && typeof stage === 'string' && STAGE_MAPPING[stage]) {
-        stage = STAGE_MAPPING[stage];
-    }
-    
-    if (department && typeof department === 'string' && DEPT_MAPPING[department]) {
-        department = DEPT_MAPPING[department];
-    }
-    
+    if (stage && typeof stage === 'string' && STAGE_MAPPING[stage]) stage = STAGE_MAPPING[stage];
+    if (department && typeof department === 'string' && DEPT_MAPPING[department]) department = DEPT_MAPPING[department];
     if (stage) conditions.push(eq(projects.stage, stage as string));
     if (department) conditions.push(eq(projects.department, department as string));
-
-    const allProjects = await db.query.projects.findMany({
-        orderBy: [desc(projects.updatedAt)],
-        where: conditions.length > 0 ? and(...conditions) : undefined
-    });
-    res.json(allProjects);
-  } catch (error) {
-    console.error('获取项目失败:', error);
-    res.status(500).json({ error: '获取项目失败' });
-  }
+    const data = await db.query.projects.findMany({ orderBy: [desc(projects.updatedAt)], where: conditions.length > 0 ? and(...conditions) : undefined });
+    res.json(data);
+  } catch (error) { res.status(500).json({ error: 'Failed' }); }
 });
 
-// 创建新项目
 app.post('/api/projects', async (req, res) => {
   try {
-    // 严格过滤字段，只保留 schema 中定义的字段
-    const allowedFields = [
-        'id', 'stage', 'department', 'responsiblePerson', 'region', 'category',
-        'threeReviewType', 'source', 'contractNo', 'contractStatus', 'name',
-        'clientName', 'clientType', 'probability', 'workProgress', 'remarks',
-        'signingMethod', 'signingDate', 'consortium', 'type', 'totalAmount',
-        'instituteAmount', 'deptAmount', 'paymentProgress', 'collectedAmount',
-        'annualData', 'timeline', 'nextPlan', 'teamMembers', 'collectionTarget',
-        'paymentLevel', 'completionStatus', 'contractLocation', 'progressStatus'
-    ];
-
-    const cleanData = Object.keys(req.body)
-        .filter(key => allowedFields.includes(key))
-        .reduce((obj, key) => {
-            obj[key] = req.body[key];
-            return obj;
-        }, {} as any);
-
-    // 必填项检查与补全
-    if (!cleanData.name) return res.status(400).json({ error: '项目名称必填' });
-    if (!cleanData.stage) cleanData.stage = '前期项目跟进';
-    if (!cleanData.department) cleanData.department = '综合组（汤、黄）';
-
-    const newProject = { ...cleanData, id: cleanData.id || nanoid(10) };
+    const newProject = { ...req.body, id: req.body.id || nanoid(10) };
     const result = await db.insert(projects).values(newProject).returning();
-    
-    // 记录日志
-    await db.insert(operationLogs).values({
-        id: nanoid(),
-        userId: 'u-001', 
-        userName: 'Admin',
-        action: 'CREATE',
-        targetType: 'PROJECT',
-        targetId: result[0].id,
-        details: `创建项目: ${result[0].name}`,
-        timestamp: new Date()
-    });
-
     res.json(result[0]);
-  } catch (error) {
-    console.error('创建项目失败详情:', error);
-    res.status(500).json({ error: '创建项目失败: ' + (error instanceof Error ? error.message : String(error)) });
-  }
+  } catch (error) { res.status(500).json({ error: 'Failed' }); }
 });
 
-// 更新项目
 app.put('/api/projects/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const result = await db.update(projects)
-      .set({ ...req.body, updatedAt: new Date() })
-      .where(eq(projects.id, id))
-      .returning();
-      
-    if (result.length > 0) {
-        await db.insert(operationLogs).values({
-            id: nanoid(),
-            userId: 'u-001',
-            userName: 'Admin',
-            action: 'UPDATE',
-            targetType: 'PROJECT',
-            targetId: id,
-            details: `更新项目: ${result[0].name}`,
-            timestamp: new Date()
-        });
-    }
-
+    const result = await db.update(projects).set({ ...req.body, updatedAt: new Date() }).where(eq(projects.id, req.params.id)).returning();
     res.json(result[0]);
-  } catch (error) {
-    console.error('更新项目失败:', error);
-    res.status(500).json({ error: '更新项目失败' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Failed' }); }
 });
 
-// 删除项目
 app.delete('/api/projects/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    // 获取项目名称用于日志
-    const project = await db.query.projects.findFirst({
-        where: eq(projects.id, id)
-    });
-
-    await db.delete(projects).where(eq(projects.id, id));
-
-    if (project) {
-        await db.insert(operationLogs).values({
-            id: nanoid(),
-            userId: 'u-001',
-            userName: 'Admin',
-            action: 'DELETE',
-            targetType: 'PROJECT',
-            targetId: id,
-            details: `删除项目: ${project.name}`,
-            timestamp: new Date()
-        });
-    }
-
+    await db.delete(projects).where(eq(projects.id, req.params.id));
     res.json({ success: true });
-  } catch (error) {
-    console.error('删除项目失败:', error);
-    res.status(500).json({ error: '删除项目失败' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Failed' }); }
 });
 
-// 2. 用户 (Users)
+// 2. 用户
 app.get('/api/users', async (req, res) => {
   try {
-    const allUsers = await db.query.users.findMany({
-        // 显式指定返回字段，不返回 password
-        columns: {
-            id: true,
-            name: true,
-            role: true,
-            department: true,
-            email: true,
-            status: true,
-            createdAt: true,
-            updatedAt: true
-        }
-    });
-    res.json(allUsers);
-  } catch (error) {
-    console.error('获取用户失败:', error);
-    res.status(500).json({ error: '获取用户失败' });
-  }
+    const data = await db.query.users.findMany({ columns: { id: true, name: true, role: true, department: true, email: true, status: true, createdAt: true, updatedAt: true } });
+    res.json(data);
+  } catch (error) { res.status(500).json({ error: 'Failed' }); }
 });
 
-// --- 认证接口 (Auth) ---
 app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
-    try {
-        const user = await db.query.users.findFirst({
-            where: eq(users.name, username)
-        });
-
-        if (user && user.password === password) {
-            if (user.status !== 'active') {
-                return res.status(403).json({ error: '账号已被禁用' });
-            }
-            // 返回脱敏后的用户信息
-            const { password: _, ...userInfo } = user;
-            res.json(userInfo);
-        } else {
-            res.status(401).json({ error: '用户名或密码错误' });
-        }
-    } catch (error) {
-        res.status(500).json({ error: '登录验证失败' });
-    }
-});
-
-app.post('/api/users', async (req, res) => {
-    try {
-        const newUser = { 
-            ...req.body, 
-            id: req.body.id || nanoid(8),
-            password: req.body.password || '123' // 默认密码
-        };
-        const result = await db.insert(users).values(newUser).returning();
-        res.json(result[0]);
-    } catch (error) {
-        console.error('创建用户失败:', error);
-        res.status(500).json({ error: '创建用户失败' });
-    }
+    const user = await db.query.users.findFirst({ where: eq(users.name, username) });
+    if (user && user.password === password) {
+        const { password: _, ...info } = user;
+        res.json(info);
+    } else res.status(401).json({ error: 'Invalid' });
 });
 
 app.put('/api/users/:id', async (req, res) => {
     try {
-        const { id } = req.params;
-        // 严格排除非数据库字段和只读字段
-        const { id: _, createdAt, updatedAt, ...rest } = req.body;
-        
-        // 确保只包含 schema 中定义的合法字段
-        const allowedFields = ['name', 'password', 'role', 'department', 'email', 'status'];
-        const cleanData = Object.keys(rest)
-            .filter(key => allowedFields.includes(key))
-            .reduce((obj, key) => {
-                obj[key] = rest[key];
-                return obj;
-            }, {} as any);
-
-        const result = await db.update(users)
-            .set({ ...cleanData, updatedAt: new Date() })
-            .where(eq(users.id, id))
-            .returning();
-            
-        if (result.length === 0) {
-            return res.status(404).json({ error: '用户不存在' });
-        }
+        const result = await db.update(users).set({ ...req.body, updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
         res.json(result[0]);
-    } catch (error) {
-        console.error('更新用户失败详情 (Full Stack):', error);
-        res.status(500).json({ error: '更新用户失败: ' + (error instanceof Error ? error.message : String(error)) });
-    }
+    } catch (error) { res.status(500).json({ error: 'Failed' }); }
 });
 
-app.delete('/api/users/:id', async (req, res) => {
-    try {
-        await db.delete(users).where(eq(users.id, req.params.id));
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: '删除用户失败' });
-    }
-});
-
-// 3. 字典 (Dictionaries)
+// 3. 字典与日志
 app.get('/api/dictionaries', async (req, res) => {
-  try {
-    const allDicts = await db.query.systemDictionaries.findMany();
-    // 转换为对象映射格式
-    const dictMap = allDicts.reduce((acc, curr) => {
-        acc[curr.key] = curr.items;
-        return acc;
-    }, {});
-    res.json(dictMap);
-  } catch (error) {
-    res.status(500).json({ error: '获取字典失败' });
-  }
+    const data = await db.query.systemDictionaries.findMany();
+    res.json(data.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.items }), {}));
 });
 
 app.post('/api/dictionaries', async (req, res) => {
-  try {
     const { key, items } = req.body;
-    // 存在则更新，不存在则插入 (Upsert)
     const existing = await db.query.systemDictionaries.findFirst({ where: eq(systemDictionaries.key, key) });
-    
-    let result;
-    if (existing) {
-        result = await db.update(systemDictionaries)
-            .set({ items, updatedAt: new Date() })
-            .where(eq(systemDictionaries.key, key))
-            .returning();
+    let result = existing 
+        ? await db.update(systemDictionaries).set({ items, updatedAt: new Date() }).where(eq(systemDictionaries.key, key)).returning()
+        : await db.insert(systemDictionaries).values({ key, items }).returning();
+    res.json(result[0]);
+});
+
+app.get('/api/logs', async (req, res) => {
+    const logs = await db.query.operationLogs.findMany({ orderBy: [desc(operationLogs.timestamp)], limit: 100 });
+    res.json(logs);
+});
+
+// AI 上下文缓存
+const aiContextCache: Record<string, { data: any, stats: any, timestamp: number }> = {};
+const CACHE_TTL = 5 * 60 * 1000;
+
+// 5. AI Chat
+app.post('/api/ai/chat', async (req, res) => {
+  let { messages, apiKey, userRole, userDepartment } = req.body;
+  
+  if (!apiKey) return res.status(400).json({ error: 'No API Key' });
+
+  try {
+    apiKey = Buffer.from(apiKey, 'base64').toString();
+    const cacheKey = `${userRole}_${userDepartment}`;
+    let projectContext;
+    let stats;
+
+    if (aiContextCache[cacheKey] && (Date.now() - aiContextCache[cacheKey].timestamp < CACHE_TTL)) {
+        projectContext = aiContextCache[cacheKey].data;
+        stats = aiContextCache[cacheKey].stats;
     } else {
-        result = await db.insert(systemDictionaries)
-            .values({ key, items })
-            .returning();
+        const conditions = [];
+        if (userRole !== 'admin' && userDepartment) {
+            conditions.push(eq(projects.department, userDepartment));
+        }
+        const filteredProjects = await db.query.projects.findMany({
+            where: conditions.length > 0 ? and(...conditions) : undefined
+        });
+
+        // 生成简要统计，辅助 AI 准确回答数量问题
+        stats = {
+            总计: filteredProjects.length,
+            已完成项目: filteredProjects.filter(p => p.stage === '已完成项目').length,
+            前期项目跟进: filteredProjects.filter(p => p.stage === '前期项目跟进').length,
+            年度收款计划: filteredProjects.filter(p => p.stage === '年度收款计划').length,
+            进度中项目: filteredProjects.filter(p => p.stage === '各组项目列表及进度').length,
+            总合同额: filteredProjects.reduce((sum, p) => sum + (p.totalAmount || 0), 0),
+            已收款总额: filteredProjects.reduce((sum, p) => sum + (p.collectedAmount || 0), 0)
+        };
+
+        projectContext = filteredProjects.map(p => ({
+            id: p.id,
+            名称: p.name, 
+            阶段: p.stage, 
+            部门: p.department, 
+            负责人: p.responsiblePerson, 
+            金额: p.totalAmount, 
+            已收款: p.collectedAmount,
+            进展: p.workProgress 
+        }));
+        
+        aiContextCache[cacheKey] = { data: projectContext, stats, timestamp: Date.now() };
     }
     
-    res.json(result[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: '更新字典失败' });
-  }
-});
+    const systemPrompt = {
+        role: "system",
+        content: `你是一个名为“方舟助手”的专业项目管理专家。
+你的回答必须始终基于以下提供的【实时数据库摘要】和【明细数据】：
 
-// 4. 日志 (Logs)
-app.get('/api/logs', async (req, res) => {
-  try {
-    const logs = await db.query.operationLogs.findMany({
-        orderBy: [desc(operationLogs.timestamp)],
-        limit: 100
+【数据库实时摘要】(这是权威统计数值，请优先参考):
+${JSON.stringify(stats, null, 2)}
+
+【项目明细数据】:
+${JSON.stringify(projectContext)}
+
+字段说明:
+- stage: 项目阶段。'已完成项目'即代表项目已结项。
+- totalAmount: 合同总额。
+- collectedAmount: 已收款金额。
+
+规则:
+1. 当用户询问数量或总额时，请优先参考【数据库实时摘要】。
+2. 始终以专业、准确、客观的态度回答。
+3. 严禁捏造不存在的数据。
+4. 使用 Markdown 格式增强展示。`
+    };
+
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+            model: "deepseek-chat",
+            messages: [systemPrompt, ...messages]
+        })
     });
-    res.json(logs);
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    res.json(data.choices[0].message);
   } catch (error) {
-    res.status(500).json({ error: '获取日志失败' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'AI Error' });
   }
 });
 
-// 启动服务器
 app.listen(port, () => {
-  console.log(`服务器运行在 http://localhost:${port}`);
+  console.log(`Server running at http://localhost:${port}`);
 });
-

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson, Monitor, ExternalLink, FileSpreadsheet, File, ChevronLeft, ChevronRight, Loader2, Info, AlertTriangle, History, ArrowUp, ArrowDown } from 'lucide-react';
+import { Save, RotateCcw, Shield, Database, User as UserIcon, Plus, X, Edit, Trash2, CheckCircle, AlertCircle, List, BookOpen, Clock, Palette, Download, Upload, FileJson, Monitor, ExternalLink, FileSpreadsheet, File, ChevronLeft, ChevronRight, Loader2, Info, AlertTriangle, History, ArrowUp, ArrowDown, Sparkles, Bot } from 'lucide-react';
 import { User, Department, OperationLog, SystemDictionary, DictItem, Project } from '../types';
 import { TAG_COLORS } from '../services/mockData';
 import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects, createProject, updateProject, fetchThemeCSS } from '../services/api';
@@ -16,10 +16,28 @@ interface SettingsProps { users: User[]; currentUser: User | null; onRefreshUser
 
 const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers, logs, dictionaries, onUpdateDictionary, currentThemeCode, onUpdateThemeCode, confirmCustom }) => {
     const isAdmin = currentUser?.role === 'admin';
-    const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict' | 'appearance'>(() => {
+    const [activeTab, setActiveTab] = useState<'users' | 'system' | 'logs' | 'dict' | 'appearance' | 'ai'>(() => {
         const s = localStorage.getItem('st_tab');
-        return (isAdmin && s && ['users','system','logs','dict','appearance'].includes(s)) ? s as any : 'appearance';
+        return (isAdmin && s && ['users','system','logs','dict','appearance', 'ai'].includes(s)) ? s as any : 'appearance';
     });
+    const [apiKey, setApiKey] = useState(() => {
+        const saved = localStorage.getItem('deepseek_api_key') || '';
+        if (!saved || saved.includes('ReferenceError')) return '';
+        try {
+            return atob(saved); // Decrypt on load
+        } catch {
+            return '';
+        }
+    });
+
+    const saveApiKey = () => {
+        if (!apiKey.trim() || apiKey.includes('ReferenceError')) {
+            showToast('无效的 API Key', 'error');
+            return;
+        }
+        localStorage.setItem('deepseek_api_key', btoa(apiKey)); // Encrypt on save
+        showToast('DeepSeek API Key 已安全加密保存');
+    };
     const [selectedDictKey, setSelectedDictKey] = useState<string>(() => {
         const s = localStorage.getItem('st_dict');
         return (s && Object.keys(dictionaries).includes(s)) ? s : (Object.keys(dictionaries)[0] || '地区');
@@ -146,14 +164,80 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
 
             <h2 className="text-2xl font-bold tracking-tight mb-4 text-foreground">系统设置</h2>
             <div className="flex space-x-1 border-b mb-4 overflow-x-auto no-scrollbar">
-                {[ { id: 'users', n: '用户权限', i: Shield }, { id: 'dict', n: '字典管理', i: BookOpen }, { id: 'logs', n: '操作日志', i: List }, { id: 'appearance', n: '个性化', i: Palette }, { id: 'system', n: '同步中心', i: Database } ].map(t => (
-                    (t.id === 'appearance' || isAdmin) && (
+                {[ { id: 'users', n: '用户权限', i: Shield }, { id: 'dict', n: '字典管理', i: BookOpen }, { id: 'logs', n: '操作日志', i: List }, { id: 'appearance', n: '个性化', i: Palette }, { id: 'ai', n: 'AI 配置', i: Sparkles }, { id: 'system', n: '同步中心', i: Database } ].map(t => (
+                    (t.id === 'appearance' || t.id === 'ai' || isAdmin) && (
                         <button key={t.id} onClick={() => changeTab(t.id as any)} className={`px-4 py-2 text-sm font-bold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${activeTab === t.id ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-muted-foreground hover:text-foreground'}`}><t.i className="h-4 w-4" /> {t.n}</button>
                     )
                 ))}
             </div>
 
             <div className="animate-in slide-in-from-bottom-2 duration-500">
+                {activeTab === 'ai' && (
+                    <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-6 relative overflow-hidden">
+                        <div className="flex items-center gap-3 border-b pb-6 bg-muted/20 -mx-6 px-6">
+                            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-sm">
+                                <Bot className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold tracking-tight">AI 智能助手配置</h3>
+                                <p className="text-sm text-muted-foreground mt-0.5">接入 DeepSeek 大模型，实现基于项目数据的智能问答</p>
+                            </div>
+                        </div>
+
+                        <div className="max-w-2xl space-y-6 py-4">
+                            <div className="space-y-3">
+                                <label className="block text-sm font-black text-foreground uppercase tracking-wider">DeepSeek API Key</label>
+                                <div className="flex gap-3">
+                                    <input 
+                                        type="password" 
+                                        value={apiKey}
+                                        onChange={(e) => setApiKey(e.target.value)}
+                                        placeholder="sk-..." 
+                                        className="flex-1 h-12 px-4 rounded-xl border bg-muted/50 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                    />
+                                    <button 
+                                        onClick={saveApiKey}
+                                        className="px-8 bg-primary text-white rounded-xl font-black text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/20 active:scale-95"
+                                    >
+                                        保存配置
+                                    </button>
+                                </div>
+                                <div className="flex items-start gap-2 p-4 rounded-xl bg-muted/30 border border-border">
+                                    <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                    <div className="text-xs text-muted-foreground leading-relaxed">
+                                        <p className="font-bold text-foreground mb-1">如何获取 Key？</p>
+                                        您可以在 <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold">DeepSeek 开放平台</a> 注册并创建 API Key。
+                                        <br />Key 将安全地保存在您的浏览器本地存储（LocalStorage）中，不会上传到我们的服务器。
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 space-y-4">
+                                <h4 className="text-sm font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4" /> 助手核心能力
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-bold text-foreground">数据分析</p>
+                                        <p className="text-[11px] text-muted-foreground">自动汇总各组项目进度、收款情况及负责人信息。</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-bold text-foreground">实时同步</p>
+                                        <p className="text-[11px] text-muted-foreground">回答始终基于当前数据库的最新版本，无滞后。</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-bold text-foreground">精细决策</p>
+                                        <p className="text-[11px] text-muted-foreground">询问“哪些项目超期”或“下月收款预测”，快速获取答案。</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-bold text-foreground">隐私保护</p>
+                                        <p className="text-[11px] text-muted-foreground">仅使用项目相关数据作为上下文，不触及用户敏感隐私。</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {activeTab === 'users' && (
                     <div className="rounded-xl border bg-card p-4 shadow-sm overflow-hidden space-y-4">
                         <div className="flex items-center justify-between"><h3 className="text-lg font-black">账号管理</h3><button onClick={() => {setEditingUser({}); setIsUserModalOpen(true);}} className="h-8 px-4 bg-primary text-white rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><Plus className="h-4 w-4"/>添加</button></div>

@@ -6,7 +6,8 @@ import ProjectTable from './components/ProjectTable';
 import GroupProjectManager from './components/GroupProjectManager';
 import Settings from './components/Settings';
 import Watermark from './components/Watermark';
-import Login from './components/Login'; // Import Login component
+import Login from './components/Login';
+import AIChat from './components/AIChat'; // Import AIChat
 import { CURRENT_USER } from './services/mockData';
 import { fetchProjects, createProject, updateProject, deleteProject, fetchUsers, fetchDictionaries, updateDictionary, fetchLogs, updateUser } from './services/api';
 import { EARLY_COLUMNS, COLLECTION_COLUMNS, PROGRESS_COLUMNS, COMPLETED_COLUMNS } from './constants';
@@ -355,6 +356,7 @@ const App: React.FC = () => {
     return (
       <>
         <Watermark userName={currentUser?.name || CURRENT_USER.name} />
+        <AIChat />
         <div className="flex h-screen overflow-hidden">
           <Sidebar currentPath={currentPath} onNavigate={handleNavigate} isOpen={sidebarOpen} setIsOpen={setSidebarOpen} currentUser={currentUser} onLogout={handleLogout} onChangePassword={() => setIsPwdModalOpen(true)} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} confirmCustom={confirmCustom} />
           <div className="flex flex-1 flex-col overflow-hidden bg-background">
