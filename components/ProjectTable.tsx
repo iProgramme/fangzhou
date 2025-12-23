@@ -65,7 +65,13 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
 
   const filteredData = useMemo(() => {
     return data.filter(item => {
-        if (searchTerm && !item.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+        // 同时匹配名称和项目 ID
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = !searchTerm || 
+            item.name.toLowerCase().includes(searchLower) || 
+            item.id.toLowerCase().includes(searchLower);
+            
+        if (!matchesSearch) return false;
         if (showAdvancedSearch) {
              if (advancedFilters.contractNo && !item.contractNo?.toLowerCase().includes(advancedFilters.contractNo.toLowerCase())) return false;
              if (advancedFilters.clientName && !item.clientName?.toLowerCase().includes(advancedFilters.clientName.toLowerCase())) return false;
@@ -101,12 +107,43 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       return item ? <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-sm font-bold ${item.bgColor} ${item.textColor} border border-transparent`}>{value}</span> : value;
   };
 
+  const renderProgressBar = (value: any, row: Project) => {
+      // 1. 尝试从 paymentProgress 获取百分比数字
+      let percent = 0;
+      if (typeof value === 'string' && value.includes('%')) {
+          percent = parseFloat(value.replace('%', ''));
+      } else if (!isNaN(Number(value)) && value !== null && value !== '') {
+          percent = Number(value) <= 1 ? Number(value) * 100 : Number(value);
+      } else {
+          // 2. 如果字段为空，则自动根据 已收款/合同额 计算
+          const total = row.totalAmount || 0;
+          const collected = row.collectedAmount || 0;
+          percent = total > 0 ? (collected / total) * 100 : 0;
+      }
+
+      const safePercent = Math.min(100, Math.max(0, percent));
+      
+      return (
+          <div className="w-32 py-1">
+              <div className="flex justify-between text-[9px] font-black mb-1">
+                  <span className={safePercent >= 100 ? 'text-green-600' : 'text-primary'}>{safePercent.toFixed(0)}%</span>
+              </div>
+              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/20">
+                  <div 
+                    className={`h-full transition-all duration-1000 ${safePercent >= 100 ? 'bg-green-500' : 'bg-primary'}`} 
+                    style={{ width: `${safePercent}%` }}
+                  />
+              </div>
+          </div>
+      );
+  };
+
   return (
     <div className="space-y-3 animate-in fade-in duration-500">
       <div className="flex flex-col gap-3 md:flex-row md:items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">{title}</h2>
         <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 md:w-56"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><input type="text" placeholder="项目名称搜索..." className="h-9 w-full rounded-lg border bg-transparent px-3 text-sm pl-9" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+            <div className="relative flex-1 md:w-56"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><input type="text" placeholder="项目名称、ID搜索..." className="h-9 w-full rounded-lg border bg-transparent px-3 text-sm pl-9" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
             <button onClick={() => setShowAdvancedSearch(!showAdvancedSearch)} className={`h-9 px-3 rounded-lg border text-sm font-bold flex items-center gap-2 ${showAdvancedSearch ? 'bg-primary text-white shadow-sm' : 'bg-background'}`}>高级搜索</button>
             <div className="relative" ref={columnToggleRef}>
                 <button onClick={() => setShowColumnToggle(!showColumnToggle)} className="h-9 px-3 rounded-lg border bg-background text-sm font-bold">视图定制</button>
@@ -172,6 +209,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                         if (col.key === 'id' || (col.key !== 'actions' && !visibleColumns.includes(col.key as string))) return null;
                         let cell: React.ReactNode;
                         if (col.key === 'annualContract' || col.key === 'annualCollection') cell = formatMoney(row.annualData?.find(d => d.year === selectedYear)?.[col.key === 'annualContract' ? 'contractAmount' : 'collectedAmount']);
+                        else if (col.key === 'paymentProgress') cell = renderProgressBar(row[col.key], row);
                         else if (col.render) cell = col.render(row[col.key as keyof Project], row);
                         else if (col.dictKey) cell = renderDictCell(row[col.key as keyof Project] as string, col.dictKey);
                         else {
