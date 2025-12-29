@@ -219,6 +219,12 @@ ${JSON.stringify(projectContext)}
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+// Export app for Vercel
+export default app;
+
+// Only start server if running directly
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+  });
+}

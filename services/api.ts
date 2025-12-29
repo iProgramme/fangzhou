@@ -2,10 +2,9 @@
 import { Project, User, SystemDictionary, OperationLog, DictItem } from '../types';
 import { INITIAL_DICTIONARIES, MOCK_USERS, MOCK_PROJECTS, INITIAL_LOGS } from './mockData';
 
-const API_PORT = 3001;
-const API_BASE = typeof window !== 'undefined' 
-    ? `${window.location.protocol}//${window.location.hostname}:${API_PORT}/api`
-    : `http://localhost:${API_PORT}/api`;
+const API_BASE = import.meta.env.DEV 
+    ? 'http://localhost:3001/api' 
+    : '/api';
 
 // --- Projects ---
 export const fetchProjects = async (filters: { stage?: string; department?: string } = {}): Promise<Project[]> => {
