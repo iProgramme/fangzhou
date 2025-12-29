@@ -2,9 +2,7 @@
 import { Project, User, SystemDictionary, OperationLog, DictItem } from '../types';
 import { INITIAL_DICTIONARIES, MOCK_USERS, MOCK_PROJECTS, INITIAL_LOGS } from './mockData';
 
-const API_BASE = import.meta.env.DEV 
-    ? 'http://localhost:3001/api' 
-    : '/api';
+const API_BASE = '/api';
 
 // --- Projects ---
 export const fetchProjects = async (filters: { stage?: string; department?: string } = {}): Promise<Project[]> => {

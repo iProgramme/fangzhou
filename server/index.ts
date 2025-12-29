@@ -2,8 +2,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { db } from '../db';
-import { projects, users, operationLogs, systemDictionaries } from '../db/schema';
+import { db } from '../db/index.js';
+import { projects, users, operationLogs, systemDictionaries } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import fs from 'fs/promises';
