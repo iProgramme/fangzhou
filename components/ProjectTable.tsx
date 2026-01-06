@@ -38,14 +38,14 @@ const CustomMultiSelect = ({ value, onChange, options }: { value: string, onChan
         <div className="relative" ref={containerRef}>
             <div 
                 onClick={() => setIsOpen(!isOpen)}
-                className="min-h-[42px] w-full rounded-xl border-2 border-border bg-card px-3 py-1.5 text-sm flex flex-wrap gap-1.5 cursor-pointer hover:border-primary/50 transition-all shadow-sm focus-within:ring-4 focus-within:ring-primary/10"
+                className="min-h-[36px] w-full rounded-xl border-2 border-border bg-card px-2 py-1 text-sm flex flex-wrap gap-1.5 cursor-pointer hover:border-primary/50 transition-all shadow-sm focus-within:ring-4 focus-within:ring-primary/10"
             >
                 {selected.length > 0 ? selected.map(s => (
-                    <span key={s} className="bg-primary/10 text-primary text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-primary/20">
+                    <span key={s} className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 border border-primary/20">
                         {s}
-                        <X className="h-3 w-3 hover:text-destructive" onClick={(e) => { e.stopPropagation(); toggleOption(s); }} />
+                        <X className="h-2.5 w-2.5 hover:text-destructive" onClick={(e) => { e.stopPropagation(); toggleOption(s); }} />
                     </span>
-                )) : <span className="text-muted-foreground italic">请选择 (多选)</span>}
+                )) : <span className="text-muted-foreground italic text-xs leading-[24px]">请选择 (多选)</span>}
                 <div className="ml-auto self-center"><ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div>
             </div>
             {isOpen && (
@@ -421,7 +421,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                   </div>
                               </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
                                   {columns.filter(c => c.key !== 'actions' && c.key !== 'id' && c.key !== 'statusLight' && c.key !== 'annualContract' && c.key !== 'annualCollection' && c.key !== 'nextPlan').map(col => (
                                       <div key={col.key as string} className="flex items-center gap-4 group">
                                           <label className="w-28 flex-shrink-0 text-[11px] font-black text-muted-foreground uppercase text-right leading-tight tracking-wider group-hover:text-primary transition-colors flex items-center justify-end gap-1">
@@ -441,13 +441,13 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                                       options={dictionaries?.[col.dictKey!] || []}
                                                   />
                                               ) : col.inputType === 'select' ? (
-                                                  <select className="h-11 w-full rounded-xl border-2 border-border bg-card px-3 text-sm font-bold text-foreground outline-none focus:border-primary transition-all shadow-sm" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})}><option value="">请选择</option>{dictionaries?.[col.dictKey!]?.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}</select>
+                                                  <select className="h-9 w-full rounded-xl border-2 border-border bg-card px-2 text-sm font-bold text-foreground outline-none focus:border-primary transition-all shadow-sm" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})}><option value="">请选择</option>{dictionaries?.[col.dictKey!]?.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}</select>
                                               ) : col.inputType === 'textarea' ? (
-                                                  <textarea className="w-full rounded-xl border-2 border-border bg-card px-3 py-2 text-sm font-bold text-foreground min-h-[80px] outline-none focus:border-primary transition-all shadow-sm resize-none" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})} />
+                                                  <textarea className="w-full rounded-xl border-2 border-border bg-card px-3 py-2 text-sm font-bold text-foreground min-h-[60px] outline-none focus:border-primary transition-all shadow-sm resize-none" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})} />
                                               ) : col.inputType === 'boolean' ? (
-                                                  <div className="h-11 flex items-center"><input type="checkbox" className="h-6 w-6 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20 transition-all" checked={!!currentForm[col.key as keyof Project]} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.checked})} /></div>
+                                                  <div className="h-9 flex items-center"><input type="checkbox" className="h-5 w-5 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20 transition-all" checked={!!currentForm[col.key as keyof Project]} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.checked})} /></div>
                                               ) : (
-                                                  <input type={col.inputType === 'number' ? 'number' : col.inputType === 'date' ? 'date' : 'text'} className={`h-11 w-full rounded-xl border-2 border-border bg-card px-3 text-sm font-bold text-foreground outline-none focus:border-primary transition-all shadow-sm ${col.key === 'collectedAmount' || col.key === 'paymentProgress' ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-70' : ''}`} value={currentForm[col.key as keyof Project] as string || ''} readOnly={col.key === 'collectedAmount' || col.key === 'paymentProgress'} onChange={e => setCurrentForm({...currentForm, [col.key as string]: col.inputType === 'number' ? parseFloat(e.target.value) : e.target.value})} />
+                                                  <input type={col.inputType === 'number' ? 'number' : col.inputType === 'date' ? 'date' : 'text'} className={`h-9 w-full rounded-xl border-2 border-border bg-card px-3 text-sm font-bold text-foreground outline-none focus:border-primary transition-all shadow-sm ${col.key === 'collectedAmount' || col.key === 'paymentProgress' ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-70' : ''}`} value={currentForm[col.key as keyof Project] as string || ''} readOnly={col.key === 'collectedAmount' || col.key === 'paymentProgress'} onChange={e => setCurrentForm({...currentForm, [col.key as string]: col.inputType === 'number' ? parseFloat(e.target.value) : e.target.value})} />
                                               )}
                                           </div>
                                       </div>
