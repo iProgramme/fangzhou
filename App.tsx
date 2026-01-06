@@ -28,9 +28,9 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Persisted Filter State
-  const [selectedYear, setSelectedYear] = useState<number>(() => {
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>(() => {
     const saved = localStorage.getItem('dashboard_year');
-    return saved ? Number(saved) : new Date().getFullYear();
+    return saved && saved !== 'all' ? Number(saved) : saved === 'all' ? 'all' : new Date().getFullYear();
   });
   const [selectedQuarter, setSelectedQuarter] = useState<string>(() => {
     return localStorage.getItem('dashboard_quarter') || 'all';
@@ -214,13 +214,15 @@ const App: React.FC = () => {
   const filteredProjects = React.useMemo(() => {
     return projects.filter(p => {
       // 1. Year Filter
-      const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
-      const hasYearlyData = p.annualData?.some(d => d.year === selectedYear);
-      const isEarlyThisYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
-      const signedThisYear = p.signingDate?.startsWith(selectedYear.toString());
-      
-      const matchesYear = hasNoYearInfo || hasYearlyData || isEarlyThisYear || signedThisYear;
-      if (!matchesYear) return false;
+      if (selectedYear !== 'all') {
+          const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
+          const hasYearlyData = p.annualData?.some(d => d.year === selectedYear);
+          const isEarlyThisYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
+          const signedThisYear = p.signingDate?.startsWith(selectedYear.toString());
+          
+          const matchesYear = hasNoYearInfo || hasYearlyData || isEarlyThisYear || signedThisYear;
+          if (!matchesYear) return false;
+      }
 
       // 2. Quarter Filter
       if (selectedQuarter !== 'all') {
@@ -234,10 +236,20 @@ const App: React.FC = () => {
         }
         
         // Check annualData collectionDate for the current selected year
-        const yearlyRecord = p.annualData?.find(d => d.year === selectedYear);
-        if (yearlyRecord?.collectionDate) {
-          const month = parseInt(yearlyRecord.collectionDate.split('-')[1]);
-          if (Math.ceil(month / 3) === q) matchesQuarter = true;
+        if (selectedYear !== 'all') {
+            const yearlyRecord = p.annualData?.find(d => d.year === selectedYear);
+            if (yearlyRecord?.collectionDate) {
+                const month = parseInt(yearlyRecord.collectionDate.split('-')[1]);
+                if (Math.ceil(month / 3) === q) matchesQuarter = true;
+            }
+        } else {
+            // If year is all, check if ANY annual data matches the quarter
+            const hasQuarterData = p.annualData?.some(d => {
+                if (!d.collectionDate) return false;
+                const month = parseInt(d.collectionDate.split('-')[1]);
+                return Math.ceil(month / 3) === q;
+            });
+            if (hasQuarterData) matchesQuarter = true;
         }
         
         if (!matchesQuarter) return false;
@@ -258,7 +270,11 @@ const App: React.FC = () => {
         const created = await createProject(newProject);
         setProjects(prev => [created, ...prev]);
         refreshLogs();
-      } catch (e) { alertCustom('失败', '创建项目失败'); }
+        return true;
+      } catch (e) { 
+        alertCustom('失败', '创建项目失败'); 
+        return false;
+      }
   };
 
   const handleUpdateProject = async (updatedProject: Project) => {
@@ -266,7 +282,11 @@ const App: React.FC = () => {
           const updated = await updateProject(updatedProject);
           setProjects(prev => prev.map(p => p.id === updated.id ? updated : p));
           refreshLogs();
-      } catch (e) { alertCustom('失败', '更新项目失败'); }
+          return true;
+      } catch (e) { 
+          alertCustom('失败', '更新项目失败'); 
+          return false;
+      }
   };
 
   const handleDeleteProject = async (id: string) => {
@@ -312,6 +332,49 @@ const App: React.FC = () => {
   const renderContent = () => {
     if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
     const isAdmin = currentUser?.role === 'admin';
+    
+    // Defensive check for projects data to prevent crashes on legacy data
+    const safeProjects = projects.map(p => ({
+        ...p,
+        timeline: Array.isArray(p.timeline) ? p.timeline : [],
+        nextPlan: Array.isArray(p.nextPlan) ? p.nextPlan : []
+    }));
+
+    // Filtered Projects based on Year and Quarter (using safe logic)
+    const filteredSafeProjects = safeProjects.filter(p => {
+      if (selectedYear !== 'all') {
+          const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
+          const hasYearlyData = p.annualData?.some(d => d.year === selectedYear);
+          const isEarlyThisYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
+          const signedThisYear = p.signingDate?.startsWith(selectedYear.toString());
+          if (!(hasNoYearInfo || hasYearlyData || isEarlyThisYear || signedThisYear)) return false;
+      }
+      if (selectedQuarter !== 'all') {
+        const q = Number(selectedQuarter);
+        let matchesQuarter = false;
+        if (p.signingDate) {
+          const month = parseInt(p.signingDate.split('-')[1]);
+          if (Math.ceil(month / 3) === q) matchesQuarter = true;
+        }
+        if (selectedYear !== 'all') {
+            const yearlyRecord = p.annualData?.find(d => d.year === selectedYear);
+            if (yearlyRecord?.collectionDate) {
+                const month = parseInt(yearlyRecord.collectionDate.split('-')[1]);
+                if (Math.ceil(month / 3) === q) matchesQuarter = true;
+            }
+        } else {
+            const hasQuarterData = p.annualData?.some(d => {
+                if (!d.collectionDate) return false;
+                const month = parseInt(d.collectionDate.split('-')[1]);
+                return Math.ceil(month / 3) === q;
+            });
+            if (hasQuarterData) matchesQuarter = true;
+        }
+        if (!matchesQuarter) return false;
+      }
+      return true;
+    });
+
     if (currentPath.startsWith('/groups/')) {
         const slug = currentPath.split('/groups/')[1];
         const department = DEPARTMENT_SLUGS[slug];
@@ -319,36 +382,52 @@ const App: React.FC = () => {
             return (
                 <GroupProjectManager 
                     department={department}
-                    projects={ filteredProjects.filter(p => p.department === department) }
+                    projects={ filteredSafeProjects.filter(p => p.department === department) }
                     dictionaries={dictionaries}
                     onAddProject={handleAddProject}
                     onEditProject={handleUpdateProject}
                     onDeleteProject={handleDeleteProject}
-                    selectedYear={selectedYear}
+                    selectedYear={selectedYear as any}
                     availableYears={availableYears}
-                    onSelectYear={setSelectedYear}
-                    selectedQuarter={selectedQuarter}
+                    onSelectYear={(y) => setSelectedYear(y)}
                     confirmCustom={confirmCustom}
                 />
             );
         }
     }
+    
     if (!isAdmin && (currentPath === '/' || currentPath.startsWith('/cycle/'))) {
         const userDept = currentUser?.department;
         const deptSlug = Object.keys(DEPARTMENT_SLUGS).find(key => DEPARTMENT_SLUGS[key] === userDept);
         if (deptSlug) {
-            return <GroupProjectManager department={userDept!} projects={filteredProjects.filter(p => p.department === userDept)} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} confirmCustom={confirmCustom} />;
+            return <GroupProjectManager department={userDept!} projects={filteredSafeProjects.filter(p => p.department === userDept)} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} />;
         }
         return <div className="p-10 text-center text-muted-foreground">您没有分配部门，请联系超级管理员</div>;
     }
+
     switch (currentPath) {
-      case '/': return <Dashboard selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} projects={filteredProjects} />;
-      case '/cycle/early': return <ProjectTable title="前期项目跟进" data={filteredProjects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
-      case '/cycle/collection': return <ProjectTable title="年度收款计划" data={filteredProjects.filter(p => p.stage === ProjectStage.COLLECTION)} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
-      case '/cycle/progress': return <ProjectTable title="各组项目列表及进度" data={filteredProjects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)} columns={PROGRESS_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
-      case '/cycle/completed': return <ProjectTable title="已完成项目" data={filteredProjects.filter(p => p.stage === ProjectStage.COMPLETED)} columns={COMPLETED_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} confirmCustom={confirmCustom} />;
+      case '/': return <Dashboard selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} selectedQuarter={selectedQuarter} projects={filteredSafeProjects} />;
+      case '/cycle/early': return <ProjectTable title="前期项目跟进" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.EARLY} />;
+      case '/cycle/collection': return <ProjectTable title="年度收款计划" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.COLLECTION)} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COLLECTION} />;
+      case '/cycle/progress': return <ProjectTable title="各组项目列表及进度" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)} columns={PROGRESS_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.GROUP_PROGRESS} />;
+      
+      case '/cycle/completed': 
+      case '/cycle/completed/contract':
+      case '/cycle/completed/no-contract': {
+          let filtered = filteredSafeProjects.filter(p => p.stage === ProjectStage.COMPLETED);
+          let title = "已完成项目汇总";
+          if ((currentPath || '').endsWith('/contract')) {
+              title = "已完成项目 (有合同)";
+              filtered = filtered.filter(p => p.contractNo && p.contractNo.trim() !== ''); 
+          } else if ((currentPath || '').endsWith('/no-contract')) {
+              title = "已完成项目 (无合同)";
+              filtered = filtered.filter(p => !p.contractNo || p.contractNo.trim() === '');
+          }
+          return <ProjectTable title={title} data={filtered} columns={COMPLETED_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COMPLETED} />;
+      }
+
       case '/settings': return <Settings users={users} currentUser={currentUser} onRefreshUsers={refreshUsers} logs={logs} dictionaries={dictionaries} onUpdateDictionary={handleUpdateDictionary} currentThemeCode={currentThemeCode} onUpdateThemeCode={setCurrentThemeCode} confirmCustom={confirmCustom} />;
-      default: return <Dashboard selectedYear={selectedYear} availableYears={availableYears} onSelectYear={setSelectedYear} selectedQuarter={selectedQuarter} projects={filteredProjects} />;
+      default: return <Dashboard selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} selectedQuarter={selectedQuarter} projects={filteredSafeProjects} />;
     }
   };
 
@@ -369,14 +448,25 @@ const App: React.FC = () => {
                   {currentPath !== '/settings' && currentPath !== '/login' && (
                       <div className="flex items-center justify-between mb-8 border-b pb-4">
                           <div>
-                              <h2 className="text-xl font-semibold">{currentPath === '/' ? '数据总览' : currentPath.startsWith('/groups/') ? '项目组管理' : '项目周期'}</h2>
-                              <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear}年</p>
+                              <h2 className="text-xl font-semibold">
+                                  {currentPath === '/' ? '数据总览' : 
+                                   (currentPath || '').startsWith('/groups/') ? '项目组管理' : 
+                                   (currentPath || '').includes('/completed') ? '项目周期 - 已完成' :
+                                   '项目周期'}
+                              </h2>
+                              <p className="text-sm text-muted-foreground">当前查看年份：{selectedYear === 'all' ? '全部年份' : `${selectedYear}年`}</p>
                           </div>
                           <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
                                   <Calendar className="h-4 w-4 text-primary" />
                                   <span className="text-sm font-medium">年份:</span>
-                                  <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer">{availableYears.map(year => (<option key={year} value={year}>{year}</option>))}</select>
+                                  <select value={selectedYear} onChange={(e) => {
+                                      const val = e.target.value;
+                                      setSelectedYear(val === 'all' ? 'all' : Number(val));
+                                  }} className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer">
+                                      <option value="all">全部年份</option>
+                                      {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
+                                  </select>
                               </div>
                               <div className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border shadow-sm">
                                   <span className="text-sm font-medium text-muted-foreground">|</span>
@@ -402,7 +492,7 @@ const App: React.FC = () => {
 
         {/* Global Dialog Component */}
         {dialog?.isOpen && (
-            <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setDialog(null)}>
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setDialog(null)}>
                 <div className="bg-background w-full max-w-sm rounded-2xl shadow-2xl border p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-3 mb-4">
                         <div className={`p-2 rounded-full ${dialog.isDestructive ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'}`}>

@@ -63,8 +63,12 @@ export const projects = pgTable('projects', {
   timeline: jsonb('timeline').default([]),
 
   // 计划与团队
-  nextPlan: text('next_plan'), // 下一步计划
+  nextPlan: jsonb('next_plan').default([]), // 下一步计划 (Changed to JSONB array)
   teamMembers: text('team_members'), // 团队成员
+  
+  // 新增字段
+  statusLight: text('status_light').default('green'), // 项目状态灯: 'red', 'yellow', 'green', 'white'
+  collectionPlan: jsonb('collection_plan').default([]), // 收款计划 [{year, amount, completed}]
 
   // 收款计划特定字段
   collectionTarget: text('collection_target'), // 收款目标

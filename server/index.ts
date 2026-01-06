@@ -68,10 +68,22 @@ app.post('/api/projects', async (req, res) => {
 
 app.put('/api/projects/:id', async (req, res) => {
   try {
-    const result = await db.update(projects).set({ ...req.body, updatedAt: new Date() }).where(eq(projects.id, req.params.id)).returning();
+    const { id, createdAt, updatedAt, ...updateData } = req.body;
+    // Ensure nested JSON objects are handled correctly by Drizzle
+    const result = await db.update(projects)
+      .set({ 
+        ...updateData, 
+        updatedAt: new Date() 
+      })
+      .where(eq(projects.id, req.params.id))
+      .returning();
+    
+    if (result.length === 0) {
+      return res.status(404).json({ error: '项目未找到' });
+    }
     res.json(result[0]);
   } catch (error: any) { 
-    console.error('Update Project Error:', error);
+    console.error('Update Project Error Details:', error);
     res.status(500).json({ error: error.message || '更新项目失败' }); 
   }
 });

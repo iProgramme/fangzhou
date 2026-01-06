@@ -23,14 +23,13 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
     const [activeTab, setActiveTab] = useState<string>('progress');
 
     const getFilteredData = () => {
-        const stage = activeTab === 'early' ? ProjectStage.EARLY : activeTab === 'collection' ? ProjectStage.COLLECTION : activeTab === 'completed' ? ProjectStage.COMPLETED : ProjectStage.GROUP_PROGRESS;
+        const stage = activeTab === 'early' ? ProjectStage.EARLY : activeTab === 'completed' ? ProjectStage.COMPLETED : ProjectStage.GROUP_PROGRESS;
         return projects.filter(p => p.stage === stage);
     };
 
     const getColumns = () => {
         const idCol = { key: 'id', header: '序号', render: renderId };
         if (activeTab === 'early') return [idCol, ...EARLY_COLUMNS];
-        if (activeTab === 'collection') return [idCol, ...COLLECTION_COLUMNS];
         if (activeTab === 'completed') return [idCol, ...COMPLETED_COLUMNS];
         return [idCol, ...PROGRESS_COLUMNS];
     };
@@ -38,9 +37,14 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
     const tabs = [
         { id: 'progress', label: '进行中' },
         { id: 'early', label: '前期' },
-        { id: 'collection', label: '收款' },
         { id: 'completed', label: '已完成' },
     ];
+
+    const getStage = () => {
+        if (activeTab === 'early') return ProjectStage.EARLY;
+        if (activeTab === 'completed') return ProjectStage.COMPLETED;
+        return ProjectStage.GROUP_PROGRESS;
+    };
 
     return (
         <div className="space-y-4">
@@ -60,13 +64,14 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
                 columns={getColumns() as any}
                 showAddButton={true} 
                 dictionaries={dictionaries}
-                onAddProject={(data) => onAddProject({ ...data, department })} 
+                onAddProject={(data) => onAddProject({ ...data, department, stage: getStage() })} 
                 onEditProject={onEditProject}
                 onDeleteProject={onDeleteProject}
                 selectedYear={selectedYear}
                 availableYears={availableYears}
                 onSelectYear={onSelectYear}
                 confirmCustom={confirmCustom}
+                defaultStage={getStage()}
             />
         </div>
     );

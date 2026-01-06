@@ -1,25 +1,74 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, SystemDictionary, AnnualData, TimelineEvent } from '../types';
-import { Search, SlidersHorizontal, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, Calendar, Coins, Filter, History, Milestone, Clock, MessageSquare, Tag, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
+import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage } from '../types';
+import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, Calendar, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
 import { nanoid } from 'nanoid';
 
 export interface ColumnDef {
-  key: keyof Project | 'actions' | 'annualContract' | 'annualCollection';
+  key: keyof Project | 'actions' | 'annualContract' | 'annualCollection' | 'statusLight';
   header: string;
   render?: (value: any, row: Project) => React.ReactNode;
-  inputType?: 'text' | 'number' | 'select' | 'date' | 'textarea' | 'boolean';
+  inputType?: 'text' | 'number' | 'select' | 'date' | 'textarea' | 'boolean' | 'multi-select';
   dictKey?: string;
 }
 
 interface ProjectTableProps {
-  data: Project[]; title?: string; columns: ColumnDef[]; dictionaries?: SystemDictionary; onAddProject?: (newProject: any) => void; onEditProject?: (project: Project) => void; onDeleteProject?: (id: string) => void; showAddButton?: boolean; selectedYear: number; availableYears: number[]; onSelectYear: (year: number) => void; confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void;
+  data: Project[]; title?: string; columns: ColumnDef[]; dictionaries?: SystemDictionary; onAddProject?: (newProject: any) => Promise<boolean>; onEditProject?: (project: Project) => Promise<boolean>; onDeleteProject?: (id: string) => void; showAddButton?: boolean; selectedYear: number | 'all'; availableYears: number[]; onSelectYear: (year: number | 'all') => void; confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void; defaultStage?: string;
 }
 
 const formatMoney = (val: any) => val ? `¥${Number(val).toLocaleString()}` : '-';
 
+// --- 自定义美化多选组件 ---
+const CustomMultiSelect = ({ value, onChange, options }: { value: string, onChange: (val: string) => void, options: any[] }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const selected = useMemo(() => value ? value.split(',').map(s => s.trim()).filter(Boolean) : [], [value]);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => { if (containerRef.current && !containerRef.current.contains(e.target as Node)) setIsOpen(false); };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const toggleOption = (label: string) => {
+        const newSelected = selected.includes(label) ? selected.filter(s => s !== label) : [...selected, label];
+        onChange(newSelected.join(','));
+    };
+
+    return (
+        <div className="relative" ref={containerRef}>
+            <div 
+                onClick={() => setIsOpen(!isOpen)}
+                className="min-h-[42px] w-full rounded-xl border-2 border-border bg-card px-3 py-1.5 text-sm flex flex-wrap gap-1.5 cursor-pointer hover:border-primary/50 transition-all shadow-sm focus-within:ring-4 focus-within:ring-primary/10"
+            >
+                {selected.length > 0 ? selected.map(s => (
+                    <span key={s} className="bg-primary/10 text-primary text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-primary/20">
+                        {s}
+                        <X className="h-3 w-3 hover:text-destructive" onClick={(e) => { e.stopPropagation(); toggleOption(s); }} />
+                    </span>
+                )) : <span className="text-muted-foreground italic">请选择 (多选)</span>}
+                <div className="ml-auto self-center"><ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div>
+            </div>
+            {isOpen && (
+                <div className="absolute z-[1000] top-[calc(100%+4px)] left-0 w-full bg-card border-2 border-border rounded-xl shadow-2xl max-h-60 overflow-y-auto p-2 animate-in zoom-in-95">
+                    {options.map(o => (
+                        <div 
+                            key={o.label} 
+                            onClick={() => toggleOption(o.label)}
+                            className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors ${selected.includes(o.label) ? 'bg-primary/5 text-primary font-black' : 'hover:bg-muted'}`}
+                        >
+                            <span className="text-sm">{o.label}</span>
+                            {selected.includes(o.label) && <Check className="h-4 w-4" />}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const ProjectTable: React.FC<ProjectTableProps> = ({ 
     data, title, columns, dictionaries, onAddProject, onEditProject, onDeleteProject,
-    showAddButton, selectedYear, availableYears, onSelectYear, confirmCustom
+    showAddButton, selectedYear, availableYears, onSelectYear, confirmCustom, defaultStage
 }) => {
   const storageKey = `table_settings_${title || 'default'}`;
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,9 +88,22 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
               const { visible, order } = JSON.parse(saved);
               const validOrder = order.filter((k: string) => defaultKeys.includes(k));
               const finalOrder = [...validOrder, ...defaultKeys.filter(k => !validOrder.includes(k))];
-              setColumnOrder(finalOrder); setVisibleColumns(visible.filter((k: string) => defaultKeys.includes(k)));
-          } catch { setColumnOrder(defaultKeys); setVisibleColumns(defaultKeys); }
-      } else { setColumnOrder(defaultKeys); setVisibleColumns(defaultKeys); }
+              
+              let finalVisible = visible.filter((k: string) => defaultKeys.includes(k));
+              if (defaultKeys.includes('statusLight') && !finalVisible.includes('statusLight')) {
+                  finalVisible = ['statusLight', ...finalVisible];
+              }
+              
+              setColumnOrder(finalOrder); 
+              setVisibleColumns(finalVisible);
+          } catch { 
+              setColumnOrder(defaultKeys); 
+              setVisibleColumns(defaultKeys.filter(k => k !== 'id')); 
+          }
+      } else { 
+          setColumnOrder(defaultKeys); 
+          setVisibleColumns(defaultKeys.filter(k => k !== 'id')); 
+      }
   }, [title, columns.length]);
 
   useEffect(() => { if (columnOrder.length > 0) localStorage.setItem(storageKey, JSON.stringify({ visible: visibleColumns, order: columnOrder })); }, [visibleColumns, columnOrder]);
@@ -50,10 +112,13 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [currentForm, setCurrentForm] = useState<Partial<Project>>({});
   const [formAnnualData, setFormAnnualData] = useState<AnnualData[]>([]);
+  const [formCollectionPlan, setFormCollectionPlan] = useState<{ year: number; amount: number; completed: boolean }[]>([]);
   const [formTimeline, setFormTimeline] = useState<TimelineEvent[]>([]);
+  const [formNextPlan, setFormNextPlan] = useState<TimelineEvent[]>([]);
   const [viewProject, setViewProject] = useState<Project | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => { if (columnToggleRef.current && !columnToggleRef.current.contains(e.target as Node)) setShowColumnToggle(false); };
@@ -63,14 +128,21 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
 
   useEffect(() => { setCurrentPage(1); }, [searchTerm, columnFilters, showAdvancedSearch, advancedFilters, data]);
 
+  // Real-time Payment Progress Calculation: “已收款/我所合同额”
+  useEffect(() => {
+      if (!isModalOpen) return;
+      const deptAmount = Number(currentForm.deptAmount) || 0;
+      const collectedAmount = Number(currentForm.collectedAmount) || 0;
+      const progress = deptAmount > 0 ? `${((collectedAmount / deptAmount) * 100).toFixed(0)}%` : '0%';
+      if (currentForm.paymentProgress !== progress) {
+          setCurrentForm(prev => ({ ...prev, paymentProgress: progress }));
+      }
+  }, [currentForm.deptAmount, currentForm.collectedAmount, isModalOpen]);
+
   const filteredData = useMemo(() => {
     return data.filter(item => {
-        // 同时匹配名称和项目 ID
         const searchLower = searchTerm.toLowerCase();
-        const matchesSearch = !searchTerm || 
-            item.name.toLowerCase().includes(searchLower) || 
-            item.id.toLowerCase().includes(searchLower);
-            
+        const matchesSearch = !searchTerm || item.name.toLowerCase().includes(searchLower) || (item.id && item.id.toLowerCase().includes(searchLower));
         if (!matchesSearch) return false;
         if (showAdvancedSearch) {
              if (advancedFilters.contractNo && !item.contractNo?.toLowerCase().includes(advancedFilters.contractNo.toLowerCase())) return false;
@@ -96,9 +168,31 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
 
   const sortedColumnDefs = useMemo(() => columnOrder.map(key => columns.find(c => c.key === key)).filter(Boolean) as ColumnDef[], [columnOrder, columns]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-      e.preventDefault(); const final = { ...currentForm, annualData: formAnnualData, timeline: formTimeline };
-      modalMode === 'add' ? onAddProject?.(final) : onEditProject?.(final as Project); setIsModalOpen(false);
+  const showInternalToast = (message: string, type: 'success' | 'error') => {
+      setToast({ message, type });
+      setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault(); 
+      const final = { 
+          ...currentForm, 
+          annualData: formAnnualData, 
+          collectionPlan: formCollectionPlan,
+          timeline: formTimeline,
+          nextPlan: formNextPlan
+      };
+      
+      const success = modalMode === 'add' 
+        ? await onAddProject?.(final) 
+        : await onEditProject?.(final as Project); 
+      
+      if (success) {
+          showInternalToast('保存成功', 'success');
+          setIsModalOpen(false);
+      } else {
+          showInternalToast('保存失败，请重试', 'error');
+      }
   };
 
   const renderDictCell = (value: string, dictKey: string) => {
@@ -107,36 +201,79 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       return item ? <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-sm font-bold ${item.bgColor} ${item.textColor} border border-transparent`}>{value}</span> : value;
   };
 
+  const getAnnualValue = (row: Project, key: 'contractAmount' | 'collectedAmount') => {
+      if (selectedYear === 'all') {
+          return row.annualData?.reduce((sum, d) => sum + (d[key] || 0), 0) || 0;
+      }
+      return row.annualData?.find(d => d.year === selectedYear)?.[key] || 0;
+  };
+
   const renderProgressBar = (value: any, row: Project) => {
-      // 1. 尝试从 paymentProgress 获取百分比数字
       let percent = 0;
       if (typeof value === 'string' && value.includes('%')) {
           percent = parseFloat(value.replace('%', ''));
       } else if (!isNaN(Number(value)) && value !== null && value !== '') {
           percent = Number(value) <= 1 ? Number(value) * 100 : Number(value);
       } else {
-          // 2. 如果字段为空，则自动根据 已收款/合同额 计算
-          const total = row.totalAmount || 0;
+          const total = row.deptAmount || row.totalAmount || row.instituteAmount || 0;
           const collected = row.collectedAmount || 0;
           percent = total > 0 ? (collected / total) * 100 : 0;
       }
-
       const safePercent = Math.min(100, Math.max(0, percent));
-      
       return (
           <div className="w-32 py-1">
               <div className="flex justify-between text-[9px] font-black mb-1">
                   <span className={safePercent >= 100 ? 'text-green-600' : 'text-primary'}>{safePercent.toFixed(0)}%</span>
               </div>
               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/20">
-                  <div 
-                    className={`h-full transition-all duration-1000 ${safePercent >= 100 ? 'bg-green-500' : 'bg-primary'}`} 
-                    style={{ width: `${safePercent}%` }}
-                  />
+                  <div className={`h-full transition-all duration-1000 ${safePercent >= 100 ? 'bg-green-500' : 'bg-primary'}`} style={{ width: `${safePercent}%` }} />
               </div>
           </div>
       );
   };
+
+  const renderTimelineSection = (
+      title: string, 
+      items: TimelineEvent[], 
+      setItems: React.Dispatch<React.SetStateAction<TimelineEvent[]>>,
+      colorTheme: 'blue' | 'purple' = 'blue'
+  ) => (
+      <div className="flex flex-col h-1/2 overflow-hidden border-b last:border-0 pb-4 last:pb-0">
+          <div className="flex-shrink-0 space-y-2 mb-4">
+              <div className="flex items-center justify-between">
+                  <h4 className="text-lg font-black flex items-center gap-2">{title}</h4>
+                  <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress'}, ...items])} className={`text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 ${colorTheme === 'purple' ? 'bg-purple-600' : 'bg-black'}`}>
+                      <Plus className="h-3 w-3"/> 添加
+                  </button>
+              </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar -mr-4 pl-2 pt-2">
+              <div className="space-y-4 relative">
+                  {items.length > 0 && <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-gray-100 rounded-full" />}
+                  {items.map((ev, idx) => (
+                      <div key={ev.id} className="relative pl-12 group">
+                          <div className={`absolute left-0 top-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm z-10 border-4 border-white transition-colors ${ev.type === 'milestone' ? 'bg-amber-100 text-amber-600' : ev.type === 'payment' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                              {ev.type === 'milestone' ? <Milestone className="h-5 w-5" /> : ev.type === 'payment' ? <Coins className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                          </div>
+                          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all group-hover:border-gray-200">
+                              <div className="flex gap-2 mb-2">
+                                  <input type="date" className="h-7 text-xs font-bold border border-border bg-card rounded px-2 shadow-sm outline-none focus:border-primary" value={ev.date} onChange={e => {const n=[...items]; n[idx].date=e.target.value; setItems(n);}} />
+                                  <select className="h-7 text-xs font-bold border border-border bg-card rounded px-2 shadow-sm flex-1 outline-none focus:border-primary" value={ev.type} onChange={e => {const n=[...items]; n[idx].type=e.target.value as any; setItems(n);}}>
+                                      <option value="progress">进展</option><option value="milestone">里程碑</option><option value="payment">财务</option>
+                                  </select>
+                                  <button type="button" onClick={() => confirmCustom('删除', '确定删除？', () => setItems(items.filter((_,i)=>i!==idx)), true)} className="h-7 w-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"><Trash2 className="h-3 w-3"/></button>
+                              </div>
+                              <input className="w-full text-sm font-black bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary outline-none px-1 transition-all placeholder:text-gray-300 mb-1" placeholder="标题" value={ev.title} onChange={e => {const n=[...items]; n[idx].title=e.target.value; setItems(n);}} />
+                              <textarea className="w-full text-xs font-medium text-gray-600 bg-gray-50/50 rounded p-2 border-0 outline-none resize-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-gray-300" placeholder="描述..." rows={2} value={ev.description} onChange={e => {const n=[...items]; n[idx].description=e.target.value; setItems(n);}} />
+                          </div>
+                      </div>
+                  ))}
+                  {items.length === 0 && <div className="text-center py-6 opacity-40"><p className="text-xs font-bold text-gray-500">暂无记录</p></div>}
+              </div>
+          </div>
+      </div>
+  );
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500">
@@ -165,30 +302,31 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                     </div>
                 )}
             </div>
-            {showAddButton && <button onClick={() => {setModalMode('add'); setCurrentForm({}); setIsModalOpen(true);}} className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-black shadow-sm">新增</button>}
+            {showAddButton && <button onClick={() => {setModalMode('add'); setCurrentForm({ stage: defaultStage as any, statusLight: 'green' }); setFormAnnualData([]); setFormCollectionPlan([]); setFormTimeline([]); setFormNextPlan([]); setIsModalOpen(true);}} className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-black shadow-sm">新增</button>}
         </div>
       </div>
 
       {showAdvancedSearch && (
-          <div className="rounded-xl border bg-card p-4 shadow-sm grid gap-3 md:grid-cols-3 lg:grid-cols-4 animate-in slide-in-from-top-2">
-              <div className="space-y-1"><label className="text-sm font-black text-muted-foreground uppercase">合同编号</label><input className="h-8 w-full rounded border bg-muted/10 px-2 text-sm outline-none" value={advancedFilters.contractNo} onChange={e => setAdvancedFilters({...advancedFilters, contractNo: e.target.value})} /></div>
-              <div className="space-y-1"><label className="text-sm font-black text-muted-foreground uppercase">甲方名称</label><input className="h-8 w-full rounded border bg-muted/10 px-2 text-sm outline-none" value={advancedFilters.clientName} onChange={e => setAdvancedFilters({...advancedFilters, clientName: e.target.value})} /></div>
-              <div className="space-y-1"><label className="text-sm font-black text-muted-foreground uppercase">负责人</label><input className="h-8 w-full rounded border bg-muted/10 px-2 text-sm outline-none" value={advancedFilters.responsiblePerson} onChange={e => setAdvancedFilters({...advancedFilters, responsiblePerson: e.target.value})} /></div>
-              <div className="space-y-1"><label className="text-sm font-black text-muted-foreground uppercase">地区</label><select className="h-8 w-full rounded border bg-muted/10 px-2 text-sm outline-none" value={advancedFilters.region} onChange={e => setAdvancedFilters({...advancedFilters, region: e.target.value})}><option value="">全部</option>{dictionaries?.['地区']?.map(d => <option key={d.label} value={d.label}>{d.label}</option>)}</select></div>
-              <div className="space-y-1 md:col-span-2"><label className="text-sm font-black text-muted-foreground uppercase tracking-widest">总额区间</label><div className="flex gap-2"><input type="number" placeholder="MIN" className="h-8 flex-1 rounded border bg-muted/10 px-2 text-sm" value={advancedFilters.minAmount} onChange={e => setAdvancedFilters({...advancedFilters, minAmount: e.target.value})} /><input type="number" placeholder="MAX" className="h-8 flex-1 rounded border bg-muted/10 px-2 text-sm" value={advancedFilters.maxAmount} onChange={e => setAdvancedFilters({...advancedFilters, maxAmount: e.target.value})} /></div></div>
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm grid gap-3 md:grid-cols-3 lg:grid-cols-4 animate-in slide-in-from-top-2">
+              <div className="space-y-1"><label className="text-sm font-black text-muted-foreground uppercase">合同编号</label><input className="h-8 w-full rounded border border-border bg-muted/10 px-2 text-sm outline-none" value={advancedFilters.contractNo} onChange={e => setAdvancedFilters({...advancedFilters, contractNo: e.target.value})} /></div>
+              <div className="space-y-1"><label className="text-sm font-black text-muted-foreground uppercase">甲方名称</label><input className="h-8 w-full rounded border border-border bg-muted/10 px-2 text-sm outline-none" value={advancedFilters.clientName} onChange={e => setAdvancedFilters({...advancedFilters, clientName: e.target.value})} /></div>
+              <div className="space-y-1"><label className="text-sm font-black text-muted-foreground uppercase">负责人</label><input className="h-8 w-full rounded border border-border bg-muted/10 px-2 text-sm outline-none" value={advancedFilters.responsiblePerson} onChange={e => setAdvancedFilters({...advancedFilters, responsiblePerson: e.target.value})} /></div>
+              <div className="space-y-1"><label className="text-sm font-black text-muted-foreground uppercase">地区</label><select className="h-8 w-full rounded border border-border bg-muted/10 px-2 text-sm outline-none" value={advancedFilters.region} onChange={e => setAdvancedFilters({...advancedFilters, region: e.target.value})}><option value="">全部</option>{dictionaries?.['地区']?.map(d => <option key={d.label} value={d.label}>{d.label}</option>)}</select></div>
+              <div className="space-y-1 md:col-span-2"><label className="text-sm font-black text-muted-foreground uppercase tracking-widest">总额区间</label><div className="flex gap-2"><input type="number" placeholder="MIN" className="h-8 flex-1 rounded border border-border bg-muted/10 px-2 text-sm" value={advancedFilters.minAmount} onChange={e => setAdvancedFilters({...advancedFilters, minAmount: e.target.value})} /><input type="number" placeholder="MAX" className="h-8 flex-1 rounded border border-border bg-muted/10 px-2 text-sm" value={advancedFilters.maxAmount} onChange={e => setAdvancedFilters({...advancedFilters, maxAmount: e.target.value})} /></div></div>
               <div className="flex items-end"><button onClick={() => {setSearchTerm(''); setAdvancedFilters({contractNo:'', clientName:'', responsiblePerson:'', region:'', category:'', minAmount:'', maxAmount:''});}} className="h-8 px-3 rounded border border-dashed border-red-200 text-red-500 text-sm font-black w-full text-center">重置</button></div>
           </div>
       )}
 
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
         <div className="relative w-full overflow-auto" style={{ maxHeight: '65vh' }}>
           <table className="w-full text-sm text-left">
             <thead className="sticky top-0 bg-secondary/95 backdrop-blur-sm z-10">
-              <tr className="border-b">
-                <th className="h-10 px-4 font-black text-muted-foreground whitespace-nowrap text-sm uppercase tracking-wider">项目ID</th>
+              <tr className="border-b border-border">
                 {sortedColumnDefs.map((col) => {
-                    if (col.key === 'id' || (col.key !== 'actions' && !visibleColumns.includes(col.key as string))) return null;
-                    let header = col.header; if (col.key === 'annualContract') header = `${selectedYear} 合同`; if (col.key === 'annualCollection') header = `${selectedYear} 收款`;
+                    if (col.key !== 'actions' && !visibleColumns.includes(col.key as string)) return null;
+                    let header = col.header; 
+                    if (col.key === 'annualContract') header = selectedYear === 'all' ? '历年合同总额' : `${selectedYear} 合同`; 
+                    if (col.key === 'annualCollection') header = selectedYear === 'all' ? '历年收款总额' : `${selectedYear} 收款`;
                     const isFilterable = col.inputType === 'select' && col.dictKey && dictionaries?.[col.dictKey];
                     const activeFilter = columnFilters[col.key as string];
                     return (
@@ -200,24 +338,37 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                 <th className="h-10 px-4 text-right sticky right-0 bg-secondary/95 text-sm font-black uppercase tracking-wider text-muted-foreground shadow-[-8px_0_12px_-5px_rgba(0,0,0,0.05)]">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-border">
               {paginatedData.length === 0 ? (<tr><td colSpan={columns.length + 1} className="p-16 text-center text-muted-foreground font-bold italic">No Data.</td></tr>) : (
                 paginatedData.map((row) => (
                   <tr key={row.id} className="group hover:bg-muted/40 transition-colors">
-                    <td className="py-2 px-4 whitespace-nowrap"><span className="font-mono text-[10px] font-black px-2 py-1 rounded bg-muted/50 text-muted-foreground border border-border/50">{row.id}</span></td>
                     {sortedColumnDefs.map((col) => {
-                        if (col.key === 'id' || (col.key !== 'actions' && !visibleColumns.includes(col.key as string))) return null;
+                        if (col.key !== 'actions' && !visibleColumns.includes(col.key as string)) return null;
                         let cell: React.ReactNode;
-                        if (col.key === 'annualContract' || col.key === 'annualCollection') cell = formatMoney(row.annualData?.find(d => d.year === selectedYear)?.[col.key === 'annualContract' ? 'contractAmount' : 'collectedAmount']);
+                        if (col.key === 'annualContract') cell = formatMoney(getAnnualValue(row, 'contractAmount'));
+                        else if (col.key === 'annualCollection') cell = formatMoney(getAnnualValue(row, 'collectedAmount'));
                         else if (col.key === 'paymentProgress') cell = renderProgressBar(row[col.key], row);
                         else if (col.render) cell = col.render(row[col.key as keyof Project], row);
                         else if (col.dictKey) cell = renderDictCell(row[col.key as keyof Project] as string, col.dictKey);
                         else {
-                            const val = row[col.key as keyof Project]; cell = (val === true ? <Check className="h-4 w-4 text-green-500" /> : val === false ? <XIcon className="h-4 w-4 text-red-300" /> : (val as React.ReactNode) || '-');
+                            const val = row[col.key as keyof Project]; 
+                            if (val === true) cell = <Check className="h-4 w-4 text-green-500" />;
+                            else if (val === false) cell = <XIcon className="h-4 w-4 text-red-300" />;
+                            else if (Array.isArray(val)) cell = val.length > 0 ? (val[0].title || '已记录') : '-';
+                            else cell = (val as React.ReactNode) || '-';
                         }
                         return <td key={col.key as string} className="py-2 px-4 whitespace-nowrap font-bold text-gray-700">{cell}</td>;
                     })}
-                    <td className="py-2 px-4 text-right sticky right-0 bg-white/80 backdrop-blur-sm group-hover:bg-muted/80 shadow-[-8px_0_12px_-5px_rgba(0,0,0,0.05)] transition-colors"><div className="flex justify-end gap-1"><button onClick={() => setViewProject(row)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><Eye className="h-4 w-4"/></button><button onClick={() => {setCurrentForm({...row}); setFormAnnualData(row.annualData||[]); setFormTimeline(row.timeline||[]); setModalMode('edit'); setIsModalOpen(true);}} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg"><Edit className="h-4 w-4"/></button><button onClick={() => confirmCustom('删除', '确定删除？', () => onDeleteProject?.(row.id), true)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="h-4 w-4"/></button></div></td>
+                    <td className="py-2 px-4 text-right sticky right-0 bg-card/80 backdrop-blur-sm group-hover:bg-muted/80 shadow-[-8px_0_12px_-5px_rgba(0,0,0,0.05)] transition-colors"><div className="flex justify-end gap-1"><button onClick={() => setViewProject(row)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><Eye className="h-4 w-4"/></button><button onClick={() => { 
+                        const totalCollected = (row.annualData || []).reduce((sum, item) => sum + (item.collectedAmount || 0), 0);
+                        setCurrentForm({...row, collectedAmount: totalCollected}); 
+                        setFormAnnualData(row.annualData||[]); 
+                        setFormCollectionPlan(row.collectionPlan||[]); 
+                        setFormTimeline(Array.isArray(row.timeline) ? row.timeline : []); 
+                        setFormNextPlan(Array.isArray(row.nextPlan) ? row.nextPlan : []); 
+                        setModalMode('edit'); 
+                        setIsModalOpen(true);
+                    }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg"><Edit className="h-4 w-4"/></button><button onClick={() => confirmCustom('删除', '确定删除？', () => onDeleteProject?.(row.id), true)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="h-4 w-4"/></button></div></td>
                   </tr>
                 ))
               )}
@@ -226,44 +377,125 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-between py-2 text-sm font-black text-muted-foreground tracking-widest border-t uppercase">
-          <div className="flex items-center gap-4"><span>共 {filteredData.length} 条</span><div className="flex items-center gap-1.5"><span>显示:</span><select className="border-none bg-muted rounded px-1.5 py-0.5" value={pageSize} onChange={e => {setPageSize(Number(e.target.value)); setCurrentPage(1);}}>{[10, 20, 50, 100].map(s => (<option key={s} value={s}>{s}</option>))}</select></div></div>
+      <div className="flex items-center justify-between py-2 text-sm font-black text-muted-foreground tracking-widest border-t border-border uppercase">
+          <div className="flex items-center gap-4"><span>共 {filteredData.length} 条</span><div className="flex items-center gap-1.5"><span>显示:</span><select className="border-none bg-muted rounded px-1.5 py-0.5 text-foreground" value={pageSize} onChange={e => {setPageSize(Number(e.target.value)); setCurrentPage(1);}}>{[10, 20, 50, 100].map(s => (<option key={s} value={s}>{s}</option>))}</select></div></div>
           <div className="flex items-center gap-2">
-              <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-1.5 border rounded-lg hover:bg-muted disabled:opacity-20"><ChevronLeft className="h-4 w-4"/></button>
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-1.5 border border-border rounded-lg hover:bg-muted disabled:opacity-20"><ChevronLeft className="h-4 w-4"/></button>
               <span className="bg-muted px-3 py-1 rounded-lg text-foreground font-black">{currentPage} / {totalPages || 1}</span>
-              <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 border rounded-lg hover:bg-muted disabled:opacity-20"><ChevronRight className="h-4 w-4"/></button>
+              <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 border border-border rounded-lg hover:bg-muted disabled:opacity-20"><ChevronRight className="h-4 w-4"/></button>
           </div>
       </div>
 
       {isModalOpen && (
           <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/70 backdrop-blur-lg p-4 animate-in fade-in" onClick={() => setIsModalOpen(false)}>
-              <div className="bg-white w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl p-8" onClick={e => e.stopPropagation()}>
-                  <div className="flex items-center justify-between mb-6 border-b pb-4"><h3 className="text-2xl font-black">{modalMode === 'add' ? '创建' : '编辑'}</h3><button onClick={() => setIsModalOpen(false)}><X className="h-6 w-6"/></button></div>
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                      <div className="lg:col-span-8"><form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-                          {columns.filter(c => c.key !== 'actions' && c.key !== 'id' && c.key !== 'annualContract' && c.key !== 'annualCollection').map(col => (
-                            <div key={col.key as string} className={`space-y-1.5 ${col.inputType === 'textarea' ? 'col-span-full' : ''}`}>
-                                <label className="text-sm font-black uppercase text-muted-foreground tracking-wide">{col.header}</label>
-                                {col.inputType === 'select' ? <select className="h-10 w-full rounded-xl border bg-gray-50 px-3 text-sm font-bold outline-none focus:ring-4 focus:ring-primary/10" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})}><option value="">请选择</option>{dictionaries?.[col.dictKey!]?.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}</select> :
-                                 col.inputType === 'textarea' ? <textarea className="w-full rounded-xl border bg-gray-50 px-3 py-2 text-sm font-bold min-h-[100px] outline-none focus:ring-4 focus:ring-primary/10" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})} /> :
-                                 col.inputType === 'boolean' ? <div className="h-10 flex items-center"><input type="checkbox" className="h-6 w-6" checked={!!currentForm[col.key as keyof Project]} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.checked})} /></div> :
-                                 <input type={col.inputType === 'number' ? 'number' : col.inputType === 'date' ? 'date' : 'text'} className="h-10 w-full rounded-xl border bg-gray-50 px-3 text-sm font-bold outline-none focus:ring-4 focus:ring-primary/10" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: col.inputType === 'number' ? parseFloat(e.target.value) : e.target.value})} />}
-                            </div>
-                          ))}
-                          <div className="col-span-full border-t pt-6 mt-4"><div className="flex items-center justify-between mb-4"><h4 className="text-xl font-black flex items-center gap-2"><Coins className="h-6 w-6 text-primary" />年度数据</h4><button type="button" onClick={() => setFormAnnualData([...formAnnualData, {year:selectedYear, contractAmount:0, collectedAmount:0}])} className="text-sm font-black text-primary px-4 py-1.5 bg-primary/10 rounded-full transition-all">+ 新增记录</button></div><div className="bg-gray-50 rounded-2xl p-4 space-y-3">{formAnnualData.map((d, idx) => (<div key={idx} className="flex gap-3 pb-3 border-b last:border-0 last:pb-0"><div className="w-24 space-y-1"><label className="text-[11px] font-black text-muted-foreground uppercase">年份</label><input type="number" className="h-9 w-full bg-white border rounded-xl px-3 text-sm font-bold" value={d.year} onChange={e => {const n=[...formAnnualData]; n[idx].year=Number(e.target.value); setFormAnnualData(n);}} /></div><div className="flex-1 space-y-1"><label className="text-[11px] font-black text-muted-foreground uppercase">合同</label><input type="number" className="h-9 w-full bg-white border rounded-xl px-3 text-sm font-bold" placeholder="合同额" value={d.contractAmount} onChange={e => {const n=[...formAnnualData]; n[idx].contractAmount=Number(e.target.value); setFormAnnualData(n);}} /></div><div className="flex-1 space-y-1"><label className="text-[11px] font-black text-muted-foreground uppercase">收款</label><input type="number" className="h-9 w-full bg-white border rounded-xl px-3 text-sm font-bold" placeholder="收款额" value={d.collectedAmount} onChange={e => {const n=[...formAnnualData]; n[idx].collectedAmount=Number(e.target.value); setFormAnnualData(n);}} /></div><button type="button" onClick={() => setFormAnnualData(formAnnualData.filter((_,i)=>i!==idx))} className="mt-5 h-9 w-9 flex items-center justify-center text-red-400 hover:bg-red-50 rounded-xl"><Trash2 className="h-5 w-5"/></button></div>))}</div></div>
-                      </form></div>
-                      <div className="lg:col-span-4 border-l pl-8 space-y-6"><div className="flex items-center justify-between"><h4 className="text-xl font-black flex items-center gap-2">追踪</h4><button type="button" onClick={() => setFormTimeline([...formTimeline, {id:nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress'}])} className="text-sm font-black text-primary px-4 py-1.5 bg-primary/10 rounded-full transition-all">+ 节点</button></div><div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">{formTimeline.map((ev, idx) => (<div key={ev.id} className="relative pl-6 pb-6 border-l-4 border-primary/10 last:pb-0"><div className="absolute -left-[10px] top-0 h-4 w-4 rounded-full bg-primary flex items-center justify-center shadow-md"><div className="h-1.5 w-1.5 rounded-full bg-white" /></div><div className="space-y-2 bg-gray-50 p-4 rounded-2xl border transition-all hover:border-primary/30"><div className="flex gap-1.5"><input type="date" className="h-8 text-sm font-bold border-none bg-white rounded-lg px-2 shadow-sm" value={ev.date} onChange={e => {const n=[...formTimeline]; n[idx].date=e.target.value; setFormTimeline(n);}} /><select className="h-8 text-sm font-bold border-none bg-white rounded-lg px-2 shadow-sm flex-1" value={ev.type} onChange={e => {const n=[...formTimeline]; n[idx].type=e.target.value as any; setFormTimeline(n);}}><option value="progress">进展</option><option value="milestone">里程碑</option><option value="payment">财务</option></select><button type="button" onClick={()=>setFormTimeline(formTimeline.filter((_,i)=>i!==idx))} className="text-red-400 p-1.5 hover:bg-white rounded-lg shadow-sm"><X className="h-4 w-4"/></button></div><input className="w-full text-sm font-black bg-transparent border-b-2 border-gray-200 outline-none py-1 focus:border-primary transition-all" placeholder="标题" value={ev.title} onChange={e => {const n=[...formTimeline]; n[idx].title=e.target.value; setFormTimeline(n);}} /><textarea className="w-full text-sm font-medium bg-transparent border-none p-0 resize-none text-muted-foreground leading-snug" rows={2} placeholder="描述..." value={ev.description} onChange={e => {const n=[...formTimeline]; n[idx].description=e.target.value; setFormTimeline(n);}} /></div></div>))}</div></div>
+              <div className="bg-card w-full max-w-7xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl p-8 flex flex-col border border-border" onClick={e => e.stopPropagation()}>
+                  {toast && (
+                      <div className={`mb-4 p-3 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-4 ${toast.type === 'success' ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'bg-destructive/10 text-destructive border border-destructive/20'}`}>
+                          {toast.type === 'success' ? <CheckCircle2 className="h-5 w-5" /> : <XIcon className="h-5 w-5" />}
+                          <span className="text-sm font-bold">{toast.message}</span>
+                      </div>
+                  )}
+                  <div className="flex items-center justify-between mb-6 border-b border-border pb-4"><h3 className="text-2xl font-black text-foreground">{modalMode === 'add' ? '创建项目' : '编辑项目'}</h3><button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors"><X className="h-6 w-6"/></button></div>
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 overflow-hidden">
+                      <div className="lg:col-span-8 overflow-y-auto custom-scrollbar pr-4">
+                          <form onSubmit={handleSubmit} className="space-y-8">
+                              <div className="flex items-center gap-4 bg-muted/30 p-4 rounded-2xl border-2 border-dashed border-border mb-6">
+                                  <label className="w-24 flex-shrink-0 text-xs font-black text-muted-foreground uppercase text-right tracking-widest">项目状态灯</label>
+                                  <div className="flex gap-4">
+                                      {['red', 'yellow', 'green', 'white'].map(color => (
+                                          <button type="button" key={color} onClick={() => setCurrentForm({...currentForm, statusLight: color})} className={`h-9 w-9 rounded-full shadow-sm border-2 transition-all ${currentForm.statusLight === color ? 'border-foreground scale-110' : 'border-transparent opacity-50 hover:opacity-100'} ${color === 'red' ? 'bg-red-500' : color === 'yellow' ? 'bg-yellow-400' : color === 'white' ? 'bg-white border-gray-200' : 'bg-emerald-500'}`} title={color === 'red' ? '紧急' : color === 'yellow' ? '暂停' : color === 'white' ? '已完成/代收款' : '正常'} />
+                                      ))}
+                                  </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5">
+                                  {columns.filter(c => c.key !== 'actions' && c.key !== 'id' && c.key !== 'statusLight' && c.key !== 'annualContract' && c.key !== 'annualCollection' && c.key !== 'nextPlan').map(col => (
+                                      <div key={col.key as string} className="flex items-center gap-4 group">
+                                          <label className="w-28 flex-shrink-0 text-[11px] font-black text-muted-foreground uppercase text-right leading-tight tracking-wider group-hover:text-primary transition-colors flex items-center justify-end gap-1">
+                                              {col.header}
+                                              {col.key === 'paymentProgress' && (
+                                                  <div className="group/tip relative">
+                                                      <HelpCircle className="h-3 w-3 text-muted-foreground/50 cursor-help" />
+                                                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-popover text-popover-foreground border border-border text-[10px] rounded-lg opacity-0 group-hover/tip:opacity-100 pointer-events-none transition-all z-50 font-medium shadow-xl">计算规则：已收款总额 / 我所合同额</div>
+                                                  </div>
+                                              )}
+                                          </label>
+                                          <div className="flex-1">
+                                              {col.inputType === 'multi-select' ? (
+                                                  <CustomMultiSelect 
+                                                      value={currentForm[col.key as keyof Project] as string || ''} 
+                                                      onChange={(val) => setCurrentForm({...currentForm, [col.key as string]: val})}
+                                                      options={dictionaries?.[col.dictKey!] || []}
+                                                  />
+                                              ) : col.inputType === 'select' ? (
+                                                  <select className="h-11 w-full rounded-xl border-2 border-border bg-card px-3 text-sm font-bold text-foreground outline-none focus:border-primary transition-all shadow-sm" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})}><option value="">请选择</option>{dictionaries?.[col.dictKey!]?.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}</select>
+                                              ) : col.inputType === 'textarea' ? (
+                                                  <textarea className="w-full rounded-xl border-2 border-border bg-card px-3 py-2 text-sm font-bold text-foreground min-h-[80px] outline-none focus:border-primary transition-all shadow-sm resize-none" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})} />
+                                              ) : col.inputType === 'boolean' ? (
+                                                  <div className="h-11 flex items-center"><input type="checkbox" className="h-6 w-6 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20 transition-all" checked={!!currentForm[col.key as keyof Project]} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.checked})} /></div>
+                                              ) : (
+                                                  <input type={col.inputType === 'number' ? 'number' : col.inputType === 'date' ? 'date' : 'text'} className={`h-11 w-full rounded-xl border-2 border-border bg-card px-3 text-sm font-bold text-foreground outline-none focus:border-primary transition-all shadow-sm ${col.key === 'collectedAmount' || col.key === 'paymentProgress' ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-70' : ''}`} value={currentForm[col.key as keyof Project] as string || ''} readOnly={col.key === 'collectedAmount' || col.key === 'paymentProgress'} onChange={e => setCurrentForm({...currentForm, [col.key as string]: col.inputType === 'number' ? parseFloat(e.target.value) : e.target.value})} />
+                                              )}
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+
+                              <div className="pt-6 border-t-2 border-border space-y-4">
+                                  <div className="flex items-center justify-between"><h4 className="text-lg font-black flex items-center gap-3 text-foreground"><Coins className="h-5 w-5 text-amber-500" /> 年度收款数据汇总</h4><button type="button" onClick={() => setFormAnnualData([...formAnnualData, {year: selectedYear === 'all' ? new Date().getFullYear() : selectedYear, contractAmount:0, collectedAmount:0}])} className="text-xs font-black text-primary px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10 transition-all hover:bg-primary/10">+ 新增年度记录</button></div>
+                                  <div className="space-y-3">{formAnnualData.map((d, idx) => (
+                                      <div key={idx} className="relative p-4 rounded-2xl bg-muted/20 border border-border flex flex-col sm:flex-row sm:items-center gap-4 animate-in slide-in-from-right-2">
+                                          <div className="flex flex-1 items-center gap-6">
+                                              <label className="w-12 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">年份</label>
+                                              <input type="number" className="h-10 w-24 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={d.year} onChange={e => {const n=[...formAnnualData]; n[idx].year=Number(e.target.value); setFormAnnualData(n);}} />
+                                              <label className="w-16 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">合同额</label>
+                                              <input type="number" className="h-10 flex-1 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={d.contractAmount} onChange={e => {const n=[...formAnnualData]; n[idx].contractAmount=Number(e.target.value); setFormAnnualData(n);}} />
+                                              <label className="w-16 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">已收款</label>
+                                              <input type="number" className="h-10 flex-1 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={d.collectedAmount} onChange={e => {const n=[...formAnnualData]; n[idx].collectedAmount=Number(e.target.value); setFormAnnualData(n); const total = n.reduce((sum, item) => sum + (item.collectedAmount || 0), 0); setCurrentForm(prev => ({...prev, collectedAmount: total})); }} />
+                                          </div>
+                                          <button type="button" onClick={() => {const n = formAnnualData.filter((_,i)=>i!==idx); setFormAnnualData(n); const total = n.reduce((sum, item) => sum + (item.collectedAmount || 0), 0); setCurrentForm(prev => ({...prev, collectedAmount: total})); }} className="h-10 w-10 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-card rounded-lg transition-all border border-transparent hover:border-border shadow-sm"><Trash2 className="h-4 w-4"/></button>
+                                      </div>))}</div>
+                              </div>
+
+                              <div className="pt-6 border-t-2 border-border space-y-4">
+                                  <div className="flex items-center justify-between"><h4 className="text-lg font-black flex items-center gap-3 text-foreground"><CheckCircle2 className="h-5 w-5 text-green-500" /> 未来收款计划任务</h4><button type="button" onClick={() => setFormCollectionPlan([...formCollectionPlan, {year: selectedYear === 'all' ? new Date().getFullYear() : selectedYear, amount: 0, completed: false}])} className="text-xs font-black text-primary px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10 transition-all hover:bg-primary/10">+ 添加计划项</button></div>
+                                  <div className="space-y-3">{formCollectionPlan.map((p, idx) => (
+                                      <div key={idx} className="relative p-4 rounded-2xl bg-muted/20 border border-border flex flex-col sm:flex-row sm:items-center gap-4">
+                                          <div className="flex flex-1 items-center gap-6">
+                                              <input type="checkbox" checked={p.completed} onChange={e => {const n=[...formCollectionPlan]; n[idx].completed=e.target.checked; setFormCollectionPlan(n);}} className="h-6 w-6 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20" />
+                                              <label className="w-12 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">年份</label>
+                                              <input type="number" className="h-10 w-24 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={p.year} onChange={e => {const n=[...formCollectionPlan]; n[idx].year=Number(e.target.value); setFormCollectionPlan(n);}} />
+                                              <label className="w-16 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">计划金额</label>
+                                              <input type="number" className="h-10 flex-1 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={p.amount} onChange={e => {const n=[...formCollectionPlan]; n[idx].amount=Number(e.target.value); setFormCollectionPlan(n);}} />
+                                          </div>
+                                          <button type="button" onClick={() => setFormCollectionPlan(formCollectionPlan.filter((_,i)=>i!==idx))} className="h-10 w-10 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-card rounded-lg transition-all border border-transparent hover:border-border shadow-sm"><Trash2 className="h-4 w-4"/></button>
+                                      </div>))}</div>
+                              </div>
+                          </form>
+                      </div>
+                      <div className="lg:col-span-4 border-l border-border pl-8 flex flex-col h-full overflow-hidden bg-muted/10 rounded-r-3xl -my-8 py-8">
+                          <div className="flex-1 min-h-0 flex flex-col gap-8">
+                              {renderTimelineSection('项目执行追踪', formTimeline, setFormTimeline, 'blue')}
+                              {renderTimelineSection('下一步工作计划', formNextPlan, setFormNextPlan, 'purple')}
+                          </div>
+                      </div>
                   </div>
-                  <div className="flex justify-end gap-4 border-t pt-8 mt-10"><button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-3 rounded-2xl border font-black text-sm uppercase tracking-widest hover:bg-gray-50 transition-all">Cancel</button><button onClick={handleSubmit} className="px-12 py-3 rounded-2xl bg-gray-900 text-white font-black text-sm uppercase tracking-widest shadow-xl hover:bg-black transition-all">Save Changes</button></div>
+                  <div className="flex justify-end gap-4 border-t border-border pt-8 mt-6">
+                      <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-3 rounded-2xl border-2 border-border text-foreground font-black text-sm uppercase tracking-widest hover:bg-muted transition-all active:scale-95">取消</button>
+                      <button onClick={handleSubmit} className="px-12 py-3 rounded-2xl bg-primary text-primary-foreground font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/20 hover:opacity-90 transition-all active:scale-95">保存</button>
+                  </div>
               </div>
           </div>
       )}
 
       {viewProject && (
           <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4 animate-in fade-in" onClick={() => setViewProject(null)}>
-             <div className="bg-white w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl flex flex-col md:flex-row border border-white/20" onClick={e => e.stopPropagation()}>
-                 <div className="p-12 md:w-2/3 border-r border-gray-100"><div className="flex items-center gap-5 mb-10"><div className="h-14 w-14 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-inner"><FileText className="h-7 w-7" /></div><div className="space-y-1"><h3 className="text-4xl font-black tracking-tight text-gray-900 leading-none">{viewProject.name}</h3><p className="text-sm font-black text-muted-foreground uppercase tracking-widest">ID: {viewProject.id} • {viewProject.department}</p></div></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-10 text-sm">{columns.filter(c => c.key !== 'actions' && c.key !== 'name').map(col => (<div key={col.key as string} className="space-y-2"><span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.2em]">{col.header}</span><div className="font-bold text-gray-800 text-lg leading-tight">{col.key === 'annualContract' ? formatMoney(viewProject.annualData?.find(d => d.year === selectedYear)?.contractAmount) : col.key === 'annualCollection' ? formatMoney(viewProject.annualData?.find(d => d.year === selectedYear)?.collectedAmount) : col.dictKey ? renderDictCell(viewProject[col.key as keyof Project] as string, col.dictKey) : (viewProject[col.key as keyof Project] === true ? '是' : viewProject[col.key as keyof Project] === false ? '否' : String(viewProject[col.key as keyof Project] || '-'))}</div></div>))}</div></div>
-                 <div className="bg-gray-50/50 p-12 md:w-1/3 flex flex-col"><div className="flex items-center gap-4 mb-10"><div className="h-12 w-12 rounded-2xl bg-white shadow-md flex items-center justify-center text-primary"><History className="h-6 w-6" /></div><h4 className="text-2xl font-black text-gray-900">生命周期</h4></div><div className="flex-1 relative space-y-8">{viewProject.timeline?.length ? viewProject.timeline.map((ev, idx) => (<div key={ev.id} className="relative pl-10">{idx !== viewProject.timeline!.length - 1 && <div className="absolute left-4 top-8 bottom-[-32px] w-[3px] bg-primary/10 rounded-full" />}<div className={`absolute left-0 top-1.5 h-8 w-8 rounded-2xl flex items-center justify-center shadow-md ${ev.type === 'milestone' ? 'bg-amber-500 shadow-amber-200' : ev.type === 'payment' ? 'bg-green-500 shadow-green-200' : 'bg-primary shadow-primary-200'}`}>{ev.type === 'milestone' ? <Milestone className="h-4 w-4 text-white" /> : <Clock className="h-4 w-4 text-white" />}</div><div className="space-y-1.5"><span className="text-[11px] font-black text-muted-foreground uppercase bg-white border px-3 py-1 rounded-full shadow-sm">{ev.date}</span><h5 className="font-black text-gray-900 text-lg leading-tight">{ev.title}</h5><p className="text-sm text-muted-foreground font-bold leading-relaxed">{ev.description}</p></div></div>)) : (<div className="h-full flex flex-col items-center justify-center opacity-30 italic font-black text-muted-foreground text-sm uppercase tracking-widest">No Events Found</div>)}</div><button onClick={() => setViewProject(null)} className="mt-12 w-full py-4 bg-gray-900 text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all hover:bg-black">Close Panel</button></div>
+             <div className="bg-card w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl flex flex-col md:flex-row border border-border" onClick={e => e.stopPropagation()}>
+                 <div className="p-12 md:w-2/3 border-r border-border"><div className="flex items-center gap-5 mb-10"><div className="h-14 w-14 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-inner"><FileText className="h-7 w-7" /></div><div className="space-y-1"><h3 className="text-4xl font-black tracking-tight text-foreground leading-none">{viewProject.name}</h3><p className="text-sm font-black text-muted-foreground uppercase tracking-widest">ID: {viewProject.id} • {viewProject.department}</p></div></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-10 text-sm">{columns.filter(c => c.key !== 'actions' && c.key !== 'name').map(col => (<div key={col.key as string} className="space-y-2"><span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.2em]">{col.header}</span><div className="font-bold text-foreground text-lg leading-tight">{col.key === 'annualContract' ? formatMoney(getAnnualValue(viewProject, 'contractAmount')) : col.key === 'annualCollection' ? formatMoney(getAnnualValue(viewProject, 'collectedAmount')) : col.dictKey ? renderDictCell(viewProject[col.key as keyof Project] as string, col.dictKey) : (viewProject[col.key as keyof Project] === true ? '是' : viewProject[col.key as keyof Project] === false ? '否' : String(viewProject[col.key as keyof Project] || '-'))}</div></div>))}</div></div>
+                 <div className="bg-muted/30 p-12 md:w-1/3 flex flex-col"><div className="flex items-center gap-4 mb-10"><div className="h-12 w-12 rounded-2xl bg-card shadow-md flex items-center justify-center text-primary"><History className="h-6 w-6" /></div><h4 className="text-2xl font-black text-foreground">生命周期</h4></div>
+                 {viewProject.stage === ProjectStage.EARLY && (<button onClick={() => {const updated = { ...viewProject, stage: ProjectStage.GROUP_PROGRESS }; onEditProject?.(updated); setViewProject(updated);}} className="mb-8 w-full py-3 bg-primary text-primary-foreground rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:opacity-90"><Plus className="h-5 w-5" /> 转为进行中</button>)}
+                 {viewProject.stage === ProjectStage.GROUP_PROGRESS && (<button onClick={() => {const updated = { ...viewProject, stage: ProjectStage.COMPLETED }; onEditProject?.(updated); setViewProject(updated);}} className="mb-8 w-full py-3 bg-emerald-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:bg-emerald-700"><CheckCircle2 className="h-5 w-5" /> 转为已完成</button>)}
+                 <div className="flex-1 relative space-y-8">{viewProject.timeline?.length ? viewProject.timeline.map((ev, idx) => (<div key={ev.id} className="relative pl-10">{idx !== viewProject.timeline!.length - 1 && <div className="absolute left-4 top-8 bottom-[-32px] w-[3px] bg-primary/10 rounded-full" />}<div className={`absolute left-0 top-1.5 h-8 w-8 rounded-2xl flex items-center justify-center shadow-md ${ev.type === 'milestone' ? 'bg-amber-500 shadow-amber-200' : ev.type === 'payment' ? 'bg-green-500 shadow-green-200' : 'bg-primary shadow-primary-200'}`}>{ev.type === 'milestone' ? <Milestone className="h-4 w-4 text-white" /> : <Clock className="h-4 w-4 text-white" />}</div><div className="space-y-1.5"><span className="text-[11px] font-black text-muted-foreground uppercase bg-card border border-border px-3 py-1 rounded-full shadow-sm">{ev.date}</span><h5 className="font-black text-foreground text-lg leading-tight">{ev.title}</h5><p className="text-sm text-muted-foreground font-bold leading-relaxed">{ev.description}</p></div></div>)) : (<div className="h-full flex flex-col items-center justify-center opacity-30 italic font-black text-muted-foreground text-sm uppercase tracking-widest">No Events Found</div>)}</div><button onClick={() => setViewProject(null)} className="mt-12 w-full py-4 bg-foreground text-background rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all hover:opacity-90">关闭面板</button></div>
              </div>
           </div>
       )}

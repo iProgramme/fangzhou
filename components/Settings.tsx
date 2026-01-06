@@ -5,7 +5,7 @@ import { TAG_COLORS } from '../services/mockData';
 import { createUser, updateUser, deleteUser as deleteUserApi, fetchProjects, createProject, updateProject, fetchThemeCSS } from '../services/api';
 import * as XLSX from 'xlsx';
 
-const PROJECT_FIELD_MAPPING: Record<string, keyof Project | 'annualDataJson'> = { "项目ID": "id", "项目阶段": "stage", "所属部门": "department", "项目负责人": "responsiblePerson", "地区": "region", "项目类别": "category", "三审类型": "threeReviewType", "项目来源": "source", "合同编号": "contractNo", "合同状态": "contractStatus", "项目名称": "name", "甲方名称": "clientName", "客户类型": "clientType", "可能性": "probability", "工作进展": "workProgress", "备注": "remarks", "签订方式": "signingMethod", "签订日期": "signingDate", "联合体单位": "consortium", "项目类型": "type", "总合同额": "totalAmount", "我院合同额": "instituteAmount", "我所合同额": "deptAmount", "收款进度": "paymentProgress", "已收款": "collectedAmount", "下一步计划": "nextPlan", "团队成员": "teamMembers", "收款目标": "collectionTarget", "收款等级": "paymentLevel", "完成情况": "completionStatus", "合同位置": "contractLocation", "进度情况": "progressStatus", "年度数据(JSON)": "annualDataJson" };
+const PROJECT_FIELD_MAPPING: Record<string, keyof Project | 'annualDataJson'> = { "项目ID": "id", "项目阶段": "stage", "所属部门": "department", "项目负责人": "responsiblePerson", "地区": "region", "项目类别": "category", "三审类型": "threeReviewType", "项目来源": "source", "合同编号": "contractNo", "合同状态": "contractStatus", "项目名称": "name", "甲方名称": "clientName", "客户类型": "clientType", "可能性": "probability", "备注": "remarks", "合同位置": "contractLocation", "签订日期": "signingDate", "联合体单位": "consortium", "项目类型": "type", "总合同额": "totalAmount", "我院合同额": "instituteAmount", "我所合同额": "deptAmount", "收款进度": "paymentProgress", "已收款": "collectedAmount", "年度数据(JSON)": "annualDataJson", "团队成员": "teamMembers", "收款目标": "collectionTarget", "收款等级": "paymentLevel", "完成情况": "completionStatus", "进度情况": "progressStatus" };
 const USER_FIELD_MAPPING: Record<string, keyof User> = { "用户ID": "id", "姓名": "name", "邮箱": "email", "角色": "role", "部门": "department", "状态": "status", "密码": "password" };
 const DICT_FIELD_MAPPING = { "字典类型": "type", "选项名称": "label", "背景颜色": "bgColor", "文字颜色": "textColor" };
 
@@ -305,7 +305,11 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
 
                 {activeTab === 'dict' && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="md:col-span-1 flex md:flex-col gap-1 overflow-x-auto no-scrollbar pb-2">{Object.keys(dictionaries).map(k => (<button key={k} onClick={() => changeDict(k)} className={`whitespace-nowrap text-left px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedDictKey === k ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}>{k}</button>))}</div>
+                        <div className="md:col-span-1 flex md:flex-col gap-1 overflow-x-auto no-scrollbar pb-2">
+                            {Object.keys(dictionaries).filter(k => k !== '签订方式').map(k => (
+                                <button key={k} onClick={() => changeDict(k)} className={`whitespace-nowrap text-left px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedDictKey === k ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}>{k}</button>
+                            ))}
+                        </div>
                         <div className="md:col-span-3 rounded-2xl border bg-card p-4 shadow-sm space-y-4">
                             <h3 className="text-lg font-black">{selectedDictKey} 列表</h3>
                             <div className="flex gap-2"><input className="flex-1 h-9 px-4 rounded-xl border bg-muted/50 text-sm outline-none focus:ring-2 focus:ring-primary/20" placeholder="新选项..." value={newDictValue} onChange={e => setNewDictValue(e.target.value)}/><button onClick={handleAddDictValue} className="h-9 px-4 bg-primary text-white rounded-xl text-sm font-black">添加</button></div>

@@ -41,7 +41,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
         { name: '前期项目跟进', path: '/cycle/early' },
         { name: '年度收款计划', path: '/cycle/collection' },
         { name: '各组项目列表及进度', path: '/cycle/progress' },
-        { name: '已完成项目', path: '/cycle/completed' },
+        { name: '已完成项目 (有合同)', path: '/cycle/completed/contract' },
+        { name: '已完成项目 (无合同)', path: '/cycle/completed/no-contract' },
       ]
     },
     {
@@ -156,23 +157,26 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
                   
                   {isExpanded && (
                     <div className="ml-4 pl-4 border-l border-border space-y-1">
-                      {item.children.map((child) => (
-                        <button
-                          key={child.path}
-                          onClick={() => {
-                            onNavigate(child.path);
-                            if (window.innerWidth < 1024) setIsOpen(false);
-                          }}
-                          className={`
-                            flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium transition-colors
-                            ${currentPath === child.path 
-                              ? 'bg-primary/10 text-primary' 
-                              : 'text-muted-foreground hover:bg-muted hover:text-foreground'}
-                          `}
-                        >
-                          <span className="truncate">{child.name}</span>
-                        </button>
-                      ))}
+                      {item.children.map((child) => {
+                        const isChildActive = currentPath === child.path;
+                        return (
+                          <button
+                            key={child.path || child.name}
+                            onClick={() => {
+                              if (child.path) onNavigate(child.path);
+                              if (window.innerWidth < 1024) setIsOpen(false);
+                            }}
+                            className={`
+                              flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium transition-colors
+                              ${isChildActive 
+                                ? 'bg-primary/10 text-primary' 
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'}
+                            `}
+                          >
+                            <span className="truncate">{child.name}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
