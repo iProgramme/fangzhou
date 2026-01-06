@@ -18,11 +18,11 @@ const renderStatusLight = (val: any) => {
         'yellow': '项目暂停',
         'white': '已完成待收款'
     };
-    const color = val === 'red' ? 'bg-red-500 shadow-red-200' : 
-                  val === 'yellow' ? 'bg-yellow-400 shadow-yellow-200' : 
-                  val === 'white' ? 'bg-white border shadow-sm' : 
-                  val === 'green' ? 'bg-emerald-500 shadow-emerald-200' : 'bg-gray-200';
-    return <div className={`h-3 w-3 rounded-full shadow-md ${color} mx-auto cursor-help`} title={meanings[val] || val} />;
+    const color = val === 'red' ? 'bg-red-500 shadow-red-200 border-red-600' : 
+                  val === 'yellow' ? 'bg-yellow-400 shadow-yellow-200 border-yellow-600' : 
+                  val === 'white' ? 'bg-white border-gray-300 shadow-sm' : 
+                  val === 'green' ? 'bg-emerald-500 shadow-emerald-200 border-emerald-600' : 'bg-gray-200 border-gray-300';
+    return <div className={`h-3 w-3 rounded-full border shadow-md ${color} mx-auto cursor-help`} title={meanings[val] || val} />;
 };
 
 // Render Boolean

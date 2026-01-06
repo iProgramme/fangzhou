@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage } from '../types';
-import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, Calendar, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
 import { nanoid } from 'nanoid';
 
 export interface ColumnDef {
@@ -401,9 +401,22 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                           <form onSubmit={handleSubmit} className="space-y-8">
                               <div className="flex items-center gap-4 bg-muted/30 p-4 rounded-2xl border-2 border-dashed border-border mb-6">
                                   <label className="w-24 flex-shrink-0 text-xs font-black text-muted-foreground uppercase text-right tracking-widest">项目状态灯</label>
-                                  <div className="flex gap-4">
-                                      {['red', 'yellow', 'green', 'white'].map(color => (
-                                          <button type="button" key={color} onClick={() => setCurrentForm({...currentForm, statusLight: color})} className={`h-9 w-9 rounded-full shadow-sm border-2 transition-all ${currentForm.statusLight === color ? 'border-foreground scale-110' : 'border-transparent opacity-50 hover:opacity-100'} ${color === 'red' ? 'bg-red-500' : color === 'yellow' ? 'bg-yellow-400' : color === 'white' ? 'bg-white border-gray-200' : 'bg-emerald-500'}`} title={color === 'red' ? '紧急' : color === 'yellow' ? '暂停' : color === 'white' ? '已完成/代收款' : '正常'} />
+                                  <div className="flex flex-wrap gap-3">
+                                      {[
+                                          { val: 'green', label: '正常推进', color: 'bg-emerald-500 border-emerald-600' },
+                                          { val: 'yellow', label: '项目暂停', color: 'bg-yellow-400 border-yellow-600' },
+                                          { val: 'red', label: '紧急/重要', color: 'bg-red-500 border-red-600' },
+                                          { val: 'white', label: '已完成', color: 'bg-white border-gray-300' }
+                                      ].map(opt => (
+                                          <button 
+                                              type="button" 
+                                              key={opt.val} 
+                                              onClick={() => setCurrentForm({...currentForm, statusLight: opt.val})} 
+                                              className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all ${currentForm.statusLight === opt.val ? 'border-primary bg-primary/5 shadow-md scale-105' : 'border-transparent bg-muted/50 hover:bg-muted'}`}
+                                          >
+                                              <span className={`h-3 w-3 rounded-full border shadow-sm ${opt.color}`} />
+                                              <span className={`text-xs font-bold ${currentForm.statusLight === opt.val ? 'text-primary' : 'text-muted-foreground'}`}>{opt.label}</span>
+                                          </button>
                                       ))}
                                   </div>
                               </div>
