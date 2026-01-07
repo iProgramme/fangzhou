@@ -34,8 +34,8 @@ app.get('/api/themes/:id', async (req, res) => {
         for (const p of pathsToTry) {
             try { css = await fs.readFile(p, 'utf-8'); if (css) break; } catch (e) {}
         }
-        if (css) res.send(css); else res.status(404).send('Theme file not found');
-    } catch (e) { res.status(500).send('Internal error'); }
+        if (css) res.send(css); else res.status(404).send('主题文件未找到');
+    } catch (e) { res.status(500).send('内部服务器错误'); }
 });
 
 const STAGE_MAPPING: Record<string, string> = { 'early': '前期项目跟进', 'collection': '年度收款计划', 'progress': '各组项目列表及进度', 'completed': '已完成项目' };
@@ -112,11 +112,44 @@ app.post('/api/auth/login', async (req, res) => {
     } else res.status(401).json({ error: '用户名或密码错误' });
 });
 
+app.post('/api/users', async (req, res) => {
+  try {
+    const { name, password, role, department, email, status } = req.body;
+    
+    if (!name || !role) {
+        return res.status(400).json({ error: '姓名和角色是必填项' });
+    }
+
+    const newUser = {
+        id: nanoid(10),
+        name,
+        password: password || '123',
+        role,
+        department,
+        email,
+        status: status || 'active'
+    };
+
+    const result = await db.insert(users).values(newUser).returning();
+    res.json(result[0]);
+  } catch (error: any) {
+    console.error('Create User Error:', error);
+    res.status(500).json({ error: error.message || '创建用户失败' });
+  }
+});
+
 app.put('/api/users/:id', async (req, res) => {
     try {
-        const result = await db.update(users).set({ ...req.body, updatedAt: new Date() }).where(eq(users.id, req.params.id)).returning();
+        const { id, createdAt, updatedAt, ...updateData } = req.body;
+        const result = await db.update(users)
+            .set({ ...updateData, updatedAt: new Date() })
+            .where(eq(users.id, req.params.id))
+            .returning();
         res.json(result[0]);
-    } catch (error: any) { res.status(500).json({ error: error.message || '更新用户失败' }); }
+    } catch (error: any) { 
+        console.error('Update User Error:', error);
+        res.status(500).json({ error: error.message || '更新用户失败' }); 
+    }
 });
 
 // 3. 字典与日志
@@ -147,7 +180,7 @@ const CACHE_TTL = 5 * 60 * 1000;
 app.post('/api/ai/chat', async (req, res) => {
   let { messages, apiKey, userRole, userDepartment } = req.body;
   
-  if (!apiKey) return res.status(400).json({ error: 'No API Key' });
+  if (!apiKey) return res.status(400).json({ error: '未配置 API Key' });
 
   try {
     apiKey = Buffer.from(apiKey, 'base64').toString();
@@ -227,7 +260,7 @@ ${JSON.stringify(projectContext)}
     if (data.error) throw new Error(data.error.message);
     res.json(data.choices[0].message);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || 'AI Error' });
+    res.status(500).json({ error: error.message || 'AI 助手响应出错' });
   }
 });
 
