@@ -197,6 +197,26 @@ const Settings: React.FC<SettingsProps> = ({ users, currentUser, onRefreshUsers,
         }, true);
     };
 
+    const handleSaveUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            if (editingUser.id) {
+                await updateUser(editingUser as User);
+                showToast('用户更新成功');
+            } else {
+                await createUser(editingUser as any);
+                showToast('用户创建成功');
+            }
+            onRefreshUsers();
+            setIsUserModalOpen(false);
+        } catch (error: any) {
+            showToast(error.message || '操作失败', 'error');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     const [uPage, setUPage] = useState(1); const [uSize, setUSize] = useState(10);
     const paginatedUsers = users.slice((uPage-1)*uSize, uPage*uSize);
     const [lPage, setLPage] = useState(1); const [lSize, setLSize] = useState(10);
