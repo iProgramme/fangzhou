@@ -12,14 +12,15 @@ export interface ColumnDef {
 }
 
 interface ProjectTableProps {
-  data: Project[]; title?: string; columns: ColumnDef[]; dictionaries?: SystemDictionary; onAddProject?: (newProject: any) => Promise<boolean>; onEditProject?: (project: Project) => Promise<boolean>; onDeleteProject?: (id: string) => void; showAddButton?: boolean; selectedYear: number | 'all'; availableYears: number[]; onSelectYear: (year: number | 'all') => void; confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void; defaultStage?: string;
+  data: Project[]; title?: string; columns: ColumnDef[]; dictionaries?: SystemDictionary; users?: User[]; onAddProject?: (newProject: any) => Promise<boolean>; onEditProject?: (project: Project) => Promise<boolean>; onDeleteProject?: (id: string) => void; showAddButton?: boolean; selectedYear: number | 'all'; availableYears: number[]; onSelectYear: (year: number | 'all') => void; confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void; defaultStage?: string;
 }
 
 const formatMoney = (val: any) => val ? `¥${Number(val).toLocaleString()}` : '-';
 
-// --- 自定义美化多选组件 ---
-const CustomMultiSelect = ({ value, onChange, options }: { value: string, onChange: (val: string) => void, options: any[] }) => {
+// --- 自定义美化多选组件 (支持分组/树形展示) ---
+const CustomMultiSelect = ({ value, onChange, options, isTree = false }: { value: string, onChange: (val: string) => void, options: any[], isTree?: boolean }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
     const selected = useMemo(() => value ? value.split(',').map(s => s.trim()).filter(Boolean) : [], [value]);
 
@@ -34,6 +35,20 @@ const CustomMultiSelect = ({ value, onChange, options }: { value: string, onChan
         onChange(newSelected.join(','));
     };
 
+    const filteredOptions = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
+
+    // Group options for tree view
+    const groupedOptions = useMemo(() => {
+        if (!isTree) return { '选项': filteredOptions };
+        const groups: Record<string, any[]> = {};
+        filteredOptions.forEach(o => {
+            const groupName = o.group || '其他';
+            if (!groups[groupName]) groups[groupName] = [];
+            groups[groupName].push(o);
+        });
+        return groups;
+    }, [filteredOptions, isTree]);
+
     return (
         <div className="relative" ref={containerRef}>
             <div 
@@ -45,21 +60,51 @@ const CustomMultiSelect = ({ value, onChange, options }: { value: string, onChan
                         {s}
                         <X className="h-2.5 w-2.5 hover:text-destructive" onClick={(e) => { e.stopPropagation(); toggleOption(s); }} />
                     </span>
-                )) : <span className="text-muted-foreground italic text-xs leading-[24px]">请选择 (多选)</span>}
+                )) : <span className="text-muted-foreground italic text-xs leading-[24px]">请选择 (支持部门与个人)</span>}
                 <div className="ml-auto self-center"><ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div>
             </div>
             {isOpen && (
-                <div className="absolute z-[1000] top-[calc(100%+4px)] left-0 w-full bg-card border-2 border-border rounded-xl shadow-2xl max-h-60 overflow-y-auto p-2 animate-in zoom-in-95">
-                    {options.map(o => (
-                        <div 
-                            key={o.label} 
-                            onClick={() => toggleOption(o.label)}
-                            className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors ${selected.includes(o.label) ? 'bg-primary/5 text-primary font-black' : 'hover:bg-muted'}`}
-                        >
-                            <span className="text-sm">{o.label}</span>
-                            {selected.includes(o.label) && <Check className="h-4 w-4" />}
-                        </div>
-                    ))}
+                <div className="absolute z-[1000] top-[calc(100%+4px)] left-0 w-full bg-card border-2 border-border rounded-xl shadow-2xl max-h-80 overflow-hidden flex flex-col animate-in zoom-in-95">
+                    <div className="p-2 border-b bg-muted/20">
+                        <input 
+                            autoFocus
+                            placeholder="搜索部门或人员..." 
+                            className="w-full h-8 px-3 rounded-lg border bg-card text-xs outline-none focus:border-primary"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                        />
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+                        {Object.entries(groupedOptions).map(([group, items]) => (
+                            <div key={group} className="space-y-1">
+                                {isTree && (
+                                    <div 
+                                        onClick={(e) => { e.stopPropagation(); toggleOption(group); }}
+                                        className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${selected.includes(group) ? 'bg-primary text-white font-black' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}
+                                    >
+                                        <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                            <Users className="h-3 w-3" /> {group} (整组)
+                                        </span>
+                                        {selected.includes(group) && <Check className="h-3.5 w-3.5" />}
+                                    </div>
+                                )}
+                                <div className={isTree ? "pl-4 space-y-0.5" : "space-y-0.5"}>
+                                    {items.map(o => (
+                                        <div 
+                                            key={o.label} 
+                                            onClick={(e) => { e.stopPropagation(); toggleOption(o.label); }}
+                                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${selected.includes(o.label) ? 'bg-primary/5 text-primary font-black' : 'hover:bg-muted'}`}
+                                        >
+                                            <span className="text-sm">{o.label}</span>
+                                            {selected.includes(o.label) && <Check className="h-4 w-4" />}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                        {Object.keys(groupedOptions).length === 0 && <div className="text-center py-4 text-xs text-muted-foreground italic">未找到匹配项</div>}
+                    </div>
                 </div>
             )}
         </div>
@@ -67,9 +112,25 @@ const CustomMultiSelect = ({ value, onChange, options }: { value: string, onChan
 };
 
 const ProjectTable: React.FC<ProjectTableProps> = ({ 
-    data, title, columns, dictionaries, onAddProject, onEditProject, onDeleteProject,
+    data, title, columns, dictionaries: originalDictionaries, users, onAddProject, onEditProject, onDeleteProject,
     showAddButton, selectedYear, availableYears, onSelectYear, confirmCustom, defaultStage
 }) => {
+    const dictionaries = useMemo(() => {
+      const d = { ...originalDictionaries };
+      
+      // Inject People
+      if (users) {
+          d['人员'] = users.map(u => ({ label: u.name, bgColor: 'bg-primary/5', textColor: 'text-primary' }));
+          
+          // Inject Structured Team Data (Department as Group)
+          d['团队和人员'] = users.map(u => ({ 
+              label: u.name, 
+              group: u.department || '未分配'
+          }));
+      }
+      return d;
+    }, [originalDictionaries, users]);
+
   const storageKey = `table_settings_${title || 'default'}`;
   const [searchTerm, setSearchTerm] = useState('');
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
@@ -515,9 +576,13 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                                       value={currentForm[col.key as keyof Project] as string || ''} 
                                                       onChange={(val) => setCurrentForm({...currentForm, [col.key as string]: val})}
                                                       options={dictionaries?.[col.dictKey!] || []}
+                                                      isTree={col.key === 'teamMembers'}
                                                   />
                                               ) : col.inputType === 'select' ? (
-                                                  <select className="h-9 w-full rounded-xl border-2 border-border bg-card px-2 text-sm font-bold text-foreground outline-none focus:border-primary transition-all shadow-sm" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})}><option value="">请选择</option>{dictionaries?.[col.dictKey!]?.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}</select>
+                                                  <select className="h-9 w-full rounded-xl border-2 border-border bg-card px-2 text-sm font-bold text-foreground outline-none focus:border-primary transition-all shadow-sm" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})}>
+                                                      <option value="">{(!dictionaries?.[col.dictKey!] || dictionaries[col.dictKey!].length === 0) ? '正在加载选项...' : '请选择'}</option>
+                                                      {dictionaries?.[col.dictKey!]?.map(o => <option key={o.label} value={o.label}>{o.label}</option>)}
+                                                  </select>
                                               ) : col.inputType === 'textarea' ? (
                                                   <textarea className="w-full rounded-xl border-2 border-border bg-card px-3 py-2 text-sm font-bold text-foreground min-h-[60px] outline-none focus:border-primary transition-all shadow-sm resize-none" value={currentForm[col.key as keyof Project] as string || ''} onChange={e => setCurrentForm({...currentForm, [col.key as string]: e.target.value})} />
                                               ) : col.inputType === 'boolean' ? (

@@ -7,6 +7,7 @@ interface GroupProjectManagerProps {
     department: Department;
     projects: Project[];
     dictionaries: SystemDictionary;
+    users?: any[];
     onAddProject: (data: Partial<Project>) => void;
     onEditProject: (project: Project) => void;
     onDeleteProject: (id: string) => void;
@@ -17,7 +18,7 @@ interface GroupProjectManagerProps {
 }
 
 const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
-    department, projects, dictionaries, onAddProject, onEditProject, onDeleteProject,
+    department, projects, dictionaries, users, onAddProject, onEditProject, onDeleteProject,
     selectedYear, availableYears, onSelectYear, confirmCustom
 }) => {
     const [activeTab, setActiveTab] = useState<string>('progress');
@@ -64,6 +65,7 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
                 columns={getColumns() as any}
                 showAddButton={true} 
                 dictionaries={dictionaries}
+                users={users}
                 onAddProject={(data) => onAddProject({ ...data, department, stage: getStage() })} 
                 onEditProject={onEditProject}
                 onDeleteProject={onDeleteProject}

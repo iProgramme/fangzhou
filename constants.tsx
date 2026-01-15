@@ -33,7 +33,7 @@ export const EARLY_COLUMNS: ColumnDef[] = [
     { key: 'statusLight', header: '状态', render: renderStatusLight, inputType: 'select', dictKey: '状态灯' },
     { key: 'id', header: '项目ID', inputType: 'text', render: (v) => <span className="font-mono text-[10px] font-bold text-gray-400">{v}</span> },
     { key: 'department', header: '（牵头）项目组', inputType: 'select', dictKey: '部门' },
-    { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
+    { key: 'responsiblePerson', header: '负责人', inputType: 'select', dictKey: '人员' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
     { key: 'category', header: '项目类别', inputType: 'select', dictKey: '项目类别' },
     { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
@@ -57,7 +57,7 @@ export const EARLY_COLUMNS: ColumnDef[] = [
     { key: 'annualCollection', header: '当年收款', render: formatMoney, inputType: 'number' },
 
     { key: 'nextPlan', header: '下一步工作计划', inputType: 'text' },
-    { key: 'teamMembers', header: '项目参与团队和人员', inputType: 'text' },
+    { key: 'teamMembers', header: '项目参与团队和人员', inputType: 'multi-select', dictKey: '团队和人员' },
 ];
 
 // 2. A2025年底收款计划 (Collection Plan)
@@ -65,7 +65,7 @@ export const COLLECTION_COLUMNS: ColumnDef[] = [
     { key: 'statusLight', header: '状态', render: renderStatusLight, inputType: 'select', dictKey: '状态灯' },
     { key: 'id', header: '项目ID', inputType: 'text', render: (v) => <span className="font-mono text-[10px] font-bold text-gray-400">{v}</span> },
     { key: 'department', header: '（牵头）项目组', inputType: 'select', dictKey: '部门' },
-    { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
+    { key: 'responsiblePerson', header: '负责人', inputType: 'select', dictKey: '人员' },
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
     { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
     { key: 'collectionTarget', header: '收款', inputType: 'text' }, // Specified as string:input
@@ -80,7 +80,7 @@ export const PROGRESS_COLUMNS: ColumnDef[] = [
     { key: 'statusLight', header: '状态', render: renderStatusLight, inputType: 'select', dictKey: '状态灯' },
     { key: 'id', header: '项目ID', inputType: 'text', render: (v) => <span className="font-mono text-[10px] font-bold text-gray-400">{v}</span> },
     { key: 'department', header: '（牵头）项目组', inputType: 'select', dictKey: '部门' },
-    { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
+    { key: 'responsiblePerson', header: '负责人', inputType: 'select', dictKey: '人员' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
     { key: 'category', header: '项目类别', inputType: 'select', dictKey: '项目类别' },
     { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
@@ -104,7 +104,7 @@ export const PROGRESS_COLUMNS: ColumnDef[] = [
 
     // workProgress removed
     { key: 'nextPlan', header: '下一步工作计划', inputType: 'text' },
-    { key: 'teamMembers', header: '项目参与团队和人员', inputType: 'text' },
+    { key: 'teamMembers', header: '项目参与团队和人员', inputType: 'multi-select', dictKey: '团队和人员' },
     { key: 'remarks', header: '备注', inputType: 'textarea' }, 
 ];
 
@@ -113,7 +113,7 @@ export const COMPLETED_COLUMNS: ColumnDef[] = [
     { key: 'statusLight', header: '状态', render: renderStatusLight, inputType: 'select', dictKey: '状态灯' },
     { key: 'id', header: '项目ID', inputType: 'text', render: (v) => <span className="font-mono text-[10px] font-bold text-gray-400">{v}</span> },
     { key: 'department', header: '（牵头）项目组', inputType: 'select', dictKey: '部门' },
-    { key: 'responsiblePerson', header: '负责人', inputType: 'text' },
+    { key: 'responsiblePerson', header: '负责人', inputType: 'select', dictKey: '人员' },
     { key: 'region', header: '地区', inputType: 'select', dictKey: '地区' },
     { key: 'category', header: '项目类别', inputType: 'select', dictKey: '项目类别' },
     { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
@@ -137,6 +137,6 @@ export const COMPLETED_COLUMNS: ColumnDef[] = [
 
     // workProgress removed
     { key: 'nextPlan', header: '下一步工作计划', inputType: 'text' },
-    { key: 'teamMembers', header: '项目参与团队和人员', inputType: 'text' },
+    { key: 'teamMembers', header: '项目参与团队和人员', inputType: 'multi-select', dictKey: '团队和人员' },
     { key: 'remarks', header: '备注', inputType: 'textarea' },
 ];
