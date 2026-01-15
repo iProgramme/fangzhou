@@ -43,6 +43,8 @@ export interface TimelineEvent {
   title: string;
   description: string;
   type: 'milestone' | 'progress' | 'payment' | 'other';
+  completed?: boolean; // New field for work plan status
+  completedAt?: string; // New field to record when the task was finished
 }
 
 export interface Project {

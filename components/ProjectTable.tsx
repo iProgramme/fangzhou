@@ -236,13 +236,14 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       title: string, 
       items: TimelineEvent[], 
       setItems: React.Dispatch<React.SetStateAction<TimelineEvent[]>>,
-      colorTheme: 'blue' | 'purple' = 'blue'
+      colorTheme: 'blue' | 'purple' = 'blue',
+      showCheckbox: boolean = false
   ) => (
       <div className="flex flex-col h-1/2 overflow-hidden border-b last:border-0 pb-4 last:pb-0">
           <div className="flex-shrink-0 space-y-2 mb-4">
               <div className="flex items-center justify-between">
                   <h4 className="text-lg font-black flex items-center gap-2">{title}</h4>
-                  <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress'}, ...items])} className={`text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 ${colorTheme === 'purple' ? 'bg-purple-600' : 'bg-black'}`}>
+                  <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false}, ...items])} className={`text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 ${colorTheme === 'purple' ? 'bg-purple-600' : 'bg-black'}`}>
                       <Plus className="h-3 w-3"/> 添加
                   </button>
               </div>
@@ -253,19 +254,50 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                   {items.length > 0 && <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-gray-100 rounded-full" />}
                   {items.map((ev, idx) => (
                       <div key={ev.id} className="relative pl-12 group">
-                          <div className={`absolute left-0 top-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm z-10 border-4 border-white transition-colors ${ev.type === 'milestone' ? 'bg-amber-100 text-amber-600' : ev.type === 'payment' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                              {ev.type === 'milestone' ? <Milestone className="h-5 w-5" /> : ev.type === 'payment' ? <Coins className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
-                          </div>
-                          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all group-hover:border-gray-200">
+                          {showCheckbox ? (
+                              <div className="absolute left-0 top-0 h-10 w-10 z-20 flex items-center justify-center">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={!!ev.completed} 
+                                    onChange={e => {
+                                        const n=[...items]; 
+                                        n[idx].completed=e.target.checked;
+                                        if (e.target.checked) {
+                                            n[idx].completedAt = new Date().toISOString().split('T')[0];
+                                        } else {
+                                            n[idx].completedAt = undefined;
+                                        }
+                                        setItems(n);
+                                    }}
+                                    className="h-6 w-6 rounded-lg border-2 border-border bg-card text-purple-600 focus:ring-purple-200 cursor-pointer transition-all"
+                                  />
+                              </div>
+                          ) : (
+                              <div className={`absolute left-0 top-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm z-10 border-4 border-white transition-colors ${ev.type === 'milestone' ? 'bg-amber-100 text-amber-600' : ev.type === 'payment' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                  {ev.type === 'milestone' ? <Milestone className="h-5 w-5" /> : ev.type === 'payment' ? <Coins className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                              </div>
+                          )}
+                          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all group-hover:border-gray-200 ${ev.completed ? 'opacity-50' : ''}`}>
                               <div className="flex gap-2 mb-2">
-                                  <input type="date" className="h-7 text-xs font-bold border border-border bg-card rounded px-2 shadow-sm outline-none focus:border-primary" value={ev.date} onChange={e => {const n=[...items]; n[idx].date=e.target.value; setItems(n);}} />
-                                  <select className="h-7 text-xs font-bold border border-border bg-card rounded px-2 shadow-sm flex-1 outline-none focus:border-primary" value={ev.type} onChange={e => {const n=[...items]; n[idx].type=e.target.value as any; setItems(n);}}>
-                                      <option value="progress">进展</option><option value="milestone">里程碑</option><option value="payment">财务</option>
+                                  <div className="flex flex-col gap-1 flex-1">
+                                      <div className="flex items-center gap-1">
+                                          <span className="text-[9px] font-black text-muted-foreground uppercase">计划日期</span>
+                                          <input type="date" className="h-6 text-[10px] font-bold border border-border bg-card rounded px-1.5 shadow-sm outline-none focus:border-primary" value={ev.date} onChange={e => {const n=[...items]; n[idx].date=e.target.value; setItems(n);}} />
+                                      </div>
+                                      {ev.completed && (
+                                          <div className="flex items-center gap-1 animate-in slide-in-from-left-2">
+                                              <span className="text-[9px] font-black text-green-600 uppercase">完成日期</span>
+                                              <input type="date" className="h-6 text-[10px] font-bold border border-green-200 bg-green-50/30 text-green-700 rounded px-1.5 shadow-sm outline-none focus:border-green-500" value={ev.completedAt || ''} onChange={e => {const n=[...items]; n[idx].completedAt=e.target.value; setItems(n);}} />
+                                          </div>
+                                      )}
+                                  </div>
+                                  <select className="h-7 text-[10px] font-bold border border-border bg-card rounded px-2 shadow-sm outline-none focus:border-primary" value={ev.type} onChange={e => {const n=[...items]; n[idx].type=e.target.value as any; setItems(n);}}>
+                                      <option value="progress">普通</option><option value="milestone">重要</option><option value="payment">财务</option>
                                   </select>
                                   <button type="button" onClick={() => confirmCustom('删除', '确定删除？', () => setItems(items.filter((_,i)=>i!==idx)), true)} className="h-7 w-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"><Trash2 className="h-3 w-3"/></button>
                               </div>
-                              <input className="w-full text-sm font-black bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary outline-none px-1 transition-all placeholder:text-gray-300 mb-1" placeholder="标题" value={ev.title} onChange={e => {const n=[...items]; n[idx].title=e.target.value; setItems(n);}} />
-                              <textarea className="w-full text-xs font-medium text-gray-600 bg-gray-50/50 rounded p-2 border-0 outline-none resize-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-gray-300" placeholder="描述..." rows={2} value={ev.description} onChange={e => {const n=[...items]; n[idx].description=e.target.value; setItems(n);}} />
+                              <input className={`w-full text-sm font-black bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary outline-none px-1 transition-all placeholder:text-gray-300 mb-1 ${ev.completed ? 'line-through' : ''}`} placeholder="任务名称..." value={ev.title} onChange={e => {const n=[...items]; n[idx].title=e.target.value; setItems(n);}} />
+                              <textarea className={`w-full text-[11px] font-medium text-gray-600 bg-gray-50/50 rounded p-2 border-0 outline-none resize-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-gray-300 ${ev.completed ? 'line-through' : ''}`} placeholder="补充说明..." rows={2} value={ev.description} onChange={e => {const n=[...items]; n[idx].description=e.target.value; setItems(n);}} />
                           </div>
                       </div>
                   ))}
@@ -544,8 +576,8 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                       </div>
                       <div className="lg:col-span-4 border-l border-border pl-8 flex flex-col h-full overflow-hidden bg-muted/10 rounded-r-3xl -my-8 py-8">
                           <div className="flex-1 min-h-0 flex flex-col gap-8">
-                              {renderTimelineSection('项目执行追踪', formTimeline, setFormTimeline, 'blue')}
-                              {renderTimelineSection('下一步工作计划', formNextPlan, setFormNextPlan, 'purple')}
+                              {renderTimelineSection('重要工作记录', formTimeline, setFormTimeline, 'blue', false)}
+                              {renderTimelineSection('工作计划', formNextPlan, setFormNextPlan, 'purple', true)}
                           </div>
                       </div>
                   </div>
