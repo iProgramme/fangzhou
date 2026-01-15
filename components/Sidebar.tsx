@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, Settings, ChevronDown, ChevronRight, X, Briefcase, LogOut, KeyRound, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, ChevronDown, ChevronRight, X, Briefcase, LogOut, KeyRound, Sun, Moon, Trash2 } from 'lucide-react';
 import { User, Department, DEPARTMENT_SLUGS } from '../types'; // Import User, Department and DEPARTMENT_SLUGS
 
 interface SidebarProps {
@@ -61,6 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
       ]
     },
     { name: '系统与个性化', icon: Settings, path: '/settings' },
+    { name: '回收站', icon: Trash2, path: '/recycle-bin' },
   ];
 
   const filteredMenuStructure = menuStructure.filter(item => {
@@ -75,7 +76,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
     // 3. System Settings is now visible to everyone (for Appearance)
     if (item.path === '/settings') return true;
 
-    // 4. Group filtering for users
+    // 4. Recycle Bin only for admin
+    if (item.path === '/recycle-bin') return isAdmin;
+
+    // 5. Group filtering for users
     if (item.name === '各项目组') {
       if (isAdmin) return true;
       

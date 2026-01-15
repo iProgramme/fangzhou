@@ -102,6 +102,8 @@ export interface Project {
   probability?: string; 
   estimatedSignYear?: string; 
   collectionPlanYear?: number; // Deprecated but kept for type compatibility if needed, though we should prefer annualData
+
+  deletedAt?: string | null; // Soft delete timestamp
 }
 
 export interface User {

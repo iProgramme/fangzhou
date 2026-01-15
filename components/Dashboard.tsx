@@ -20,22 +20,60 @@ interface DashboardProps {
 
 const formatWan = (val: number) => `¥${(val / 10000).toFixed(0)}w`;
 
-const CompactKPICard = ({ title, value, target, color, formula }: any) => (
-    <div className={`rounded-xl border bg-card p-4 shadow-sm border-t-4 transition-all hover:shadow-md relative group ${color === 'indigo' ? 'border-t-indigo-500' : 'border-t-emerald-500'}`}>
-        <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{title}</p>
-            <div className="relative group/tooltip">
-                <HelpCircle className="h-3 w-3 text-gray-300 hover:text-primary cursor-help transition-colors" />
-                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-900 text-white text-[9px] rounded-lg opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-white/10 leading-relaxed font-bold">
-                    <div className="text-primary mb-1 uppercase tracking-tighter">[计算公式]</div>
-                    {formula}
+const CompactKPICard = ({ title, value, target, color, formula }: any) => {
+    const progress = Math.min(100, (value / (target || 1)) * 100);
+    const isIndigo = color === 'indigo';
+    
+    return (
+        <div className={`flex-1 rounded-2xl border bg-card p-6 shadow-lg border-t-8 transition-all hover:shadow-2xl relative group ${isIndigo ? 'border-t-indigo-500 bg-gradient-to-br from-indigo-50/50 to-transparent' : 'border-t-emerald-500 bg-gradient-to-br from-emerald-50/50 to-transparent'}`}>
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col">
+                    <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1">{title}</p>
+                    <div className="flex items-baseline gap-2">
+                        <h3 className={`text-4xl font-black ${isIndigo ? 'text-indigo-700' : 'text-emerald-700'} tracking-tighter`}>
+                            ¥{(value / 10000).toFixed(0)}<span className="text-xl ml-1">w</span>
+                        </h3>
+                    </div>
+                </div>
+                <div className={`p-3 rounded-xl ${isIndigo ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                    {isIndigo ? <FileText className="h-6 w-6" /> : <Wallet className="h-6 w-6" />}
+                </div>
+            </div>
+
+            <div className="space-y-3">
+                <div className="flex justify-between items-end">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase">完成进度</span>
+                        <span className={`text-lg font-black ${progress >= 100 ? 'text-emerald-600' : isIndigo ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                            {progress.toFixed(1)}%
+                        </span>
+                    </div>
+                    <div className="text-right">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase block">年度目标</span>
+                        <span className="text-sm font-bold text-gray-600">¥{(target / 10000).toFixed(0)}w</span>
+                    </div>
+                </div>
+                
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden border p-0.5">
+                    <div 
+                        className={`h-full rounded-full transition-all duration-1000 ease-out ${isIndigo ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'}`}
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+            </div>
+
+            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="relative group/tooltip">
+                    <HelpCircle className="h-4 w-4 text-gray-300 hover:text-primary cursor-help" />
+                    <div className="absolute bottom-full right-0 mb-2 w-48 p-3 bg-gray-900 text-white text-[10px] rounded-xl opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50 shadow-2xl border border-white/10 leading-relaxed font-bold">
+                        <div className="text-primary mb-1 uppercase tracking-tighter">[计算逻辑]</div>
+                        {formula}
+                    </div>
                 </div>
             </div>
         </div>
-        <h3 className={`text-xl font-black ${color === 'indigo' ? 'text-indigo-700' : 'text-emerald-700'} tracking-tight`}>¥{(value / 10000).toFixed(0)}w</h3>
-        <div className="flex justify-between items-center mt-3 pt-2 border-t border-dashed text-[9px]"><span className="text-gray-400 font-medium">目标: {(target / 10000).toFixed(0)}w</span><span className={`font-black ${value >= target ? 'text-emerald-600' : 'text-orange-500'}`}>{((value / (target || 1)) * 100).toFixed(0)}%</span></div>
-    </div>
-);
+    );
+};
 
 const ChartCard = ({ title, icon, children, fields, filters, options, labels, onToggle, isOpen, onOpen, onZoom, size, onResize, onDragStart, onDragOver, onDragEnd, isDragging, isDragOver }: any) => {
     const activeCount = Object.values(filters).flat().length;
@@ -298,38 +336,21 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         <div className="flex flex-wrap gap-4 transition-all">
             {activeTab === 'financial' ? (
               <>
-                  <div className="w-full grid gap-4 grid-cols-2 lg:grid-cols-4 mb-2">
+                  <div className="w-full flex flex-col md:flex-row gap-6 mb-4">
                       <CompactKPICard 
-                        title="年度合同" 
+                        title="年度合同额度" 
                         value={analytics.totalContract} 
                         target={analytics.contractTarget} 
                         color="indigo" 
                         formula="Σ (年度数据中 [当前年份] 的合同额)" 
                       />
                       <CompactKPICard 
-                        title="年度收款" 
+                        title="年度实收回款" 
                         value={analytics.totalCollected} 
                         target={analytics.collectionTarget} 
                         color="emerald" 
                         formula="Σ (年度数据中 [当前年份] 的已收款额)" 
                       />
-                      <div className="col-span-2 rounded-xl border bg-card p-4 flex items-center gap-6 shadow-sm border-b-4 border-b-primary/30 relative group">
-                          <div className="flex-1">
-                              <div className="flex justify-between text-[10px] font-black uppercase text-gray-400 mb-1">
-                                  <div className="flex items-center gap-1">
-                                      <span>回款进度</span>
-                                      <div className="relative group/tooltip">
-                                          <HelpCircle className="h-3 w-3 text-gray-300 cursor-help" />
-                                          <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-900 text-white text-[9px] rounded-lg opacity-0 group-hover/tooltip:opacity-100 transition-opacity z-50 pointer-events-none">
-                                              公式：(年度收款 / 年度收款目标) × 100%
-                                          </div>
-                                      </div>
-                                  </div>
-                                  <span className="text-primary">{((analytics.totalCollected / (analytics.collectionTarget || 1)) * 100).toFixed(1)}%</span>
-                              </div>
-                              <div className="h-2.5 bg-muted rounded-full overflow-hidden border"><div className="h-full bg-gradient-to-r from-primary to-purple-500 transition-all duration-1000" style={{ width: `${Math.min(100, (analytics.totalCollected / (analytics.collectionTarget || 1) * 100))}%` }}></div></div>
-                          </div>
-                      </div>
                   </div>
                   {chartOrder.financial.map(key => (<ChartCard key={key} title={(chartConfigs as any)[key].t} icon={(chartConfigs as any)[key].icon} fields={(chartConfigs as any)[key].f} filters={localFilters[key]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(key,f,v)} isOpen={openFilterKey===key} onOpen={()=>setOpenFilterKey(openFilterKey===key?null:key)} onZoom={()=>handleZoom(key, (chartConfigs as any)[key].t, (chartConfigs as any)[key].f)} size={chartSizes[key]} onResize={(w:string, h:number) => onResize(key, w, h)} onDragStart={() => handleDragStart(key)} onDragOver={(e:any) => handleDragOver(e, key)} onDragEnd={handleDragEnd} isDragging={draggedKey === key} isDragOver={dragOverKey === key}>{renderChartContent(key, chartSizes[key]?.h || 300)}</ChartCard>))}
               </>

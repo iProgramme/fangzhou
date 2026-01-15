@@ -83,6 +83,8 @@ export const projects = pgTable('projects', {
   estimatedSignYear: text('estimated_sign_year'), // 预计签约年份
   collectionPlanYear: integer('plan_collection_2025'), // 2025计划收款
 
+  deletedAt: timestamp('deleted_at'), // 软删除时间戳
+
   createdAt: timestamp('created_at').defaultNow(), // 创建时间
   updatedAt: timestamp('updated_at').defaultNow(), // 更新时间
 });

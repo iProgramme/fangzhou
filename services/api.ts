@@ -61,6 +61,27 @@ export const deleteProject = async (id: string): Promise<void> => {
     if (!res.ok) throw new Error('删除项目失败');
 };
 
+export const fetchDeletedProjects = async (): Promise<Project[]> => {
+    const res = await fetch(`${API_BASE}/projects?deleted=true`);
+    if (!res.ok) throw new Error('获取已删除项目失败');
+    return res.json();
+};
+
+export const restoreProject = async (id: string): Promise<Project> => {
+    const res = await fetch(`${API_BASE}/projects/${id}/restore`, {
+        method: 'POST'
+    });
+    if (!res.ok) throw new Error('恢复项目失败');
+    return res.json();
+};
+
+export const permanentDeleteProject = async (id: string): Promise<void> => {
+    const res = await fetch(`${API_BASE}/projects/${id}/permanent`, {
+        method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('永久删除项目失败');
+};
+
 // --- Users ---
 export const fetchUsers = async (): Promise<User[]> => {
     const res = await fetch(`${API_BASE}/users`);

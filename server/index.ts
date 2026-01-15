@@ -4,7 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { db } from '../db/index.js';
 import { projects, users, operationLogs, systemDictionaries } from '../db/schema.js';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, isNull, isNotNull } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import fs from 'fs/promises';
 import path from 'path';
@@ -44,20 +44,36 @@ const DEPT_MAPPING: Record<string, string> = { 'comprehensive': '综合组（汤
 // 1. 项目
 app.get('/api/projects', async (req, res) => {
   try {
-    let { stage, department } = req.query;
+    let { stage, department, deleted } = req.query;
     const conditions = [];
+    
+    // Improved logic: 
+    // If deleted=true, only show deleted projects.
+    // If not, only show non-deleted projects (where deletedAt is null).
+    if (deleted === 'true') {
+        conditions.push(isNotNull(projects.deletedAt));
+    } else {
+        conditions.push(isNull(projects.deletedAt));
+    }
+
     if (stage && typeof stage === 'string' && STAGE_MAPPING[stage]) stage = STAGE_MAPPING[stage];
     if (department && typeof department === 'string' && DEPT_MAPPING[department]) department = DEPT_MAPPING[department];
+    
     if (stage) conditions.push(eq(projects.stage, stage as string));
     if (department) conditions.push(eq(projects.department, department as string));
-    const data = await db.query.projects.findMany({ orderBy: [desc(projects.updatedAt)], where: conditions.length > 0 ? and(...conditions) : undefined });
+    
+    const data = await db.query.projects.findMany({ 
+        orderBy: [desc(projects.updatedAt)], 
+        where: conditions.length > 0 ? and(...conditions) : undefined 
+    });
     res.json(data);
   } catch (error) { res.status(500).json({ error: '获取项目失败' }); }
 });
 
 app.post('/api/projects', async (req, res) => {
   try {
-    const newProject = { ...req.body, id: req.body.id || nanoid(10) };
+    const { id, createdAt, updatedAt, deletedAt, ...projectData } = req.body;
+    const newProject = { ...projectData, id: id || nanoid(10), deletedAt: null };
     const result = await db.insert(projects).values(newProject).returning();
     res.json(result[0]);
   } catch (error: any) { 
@@ -68,7 +84,7 @@ app.post('/api/projects', async (req, res) => {
 
 app.put('/api/projects/:id', async (req, res) => {
   try {
-    const { id, createdAt, updatedAt, ...updateData } = req.body;
+    const { id, createdAt, updatedAt, deletedAt, ...updateData } = req.body;
     // Ensure nested JSON objects are handled correctly by Drizzle
     const result = await db.update(projects)
       .set({ 
@@ -88,11 +104,31 @@ app.put('/api/projects/:id', async (req, res) => {
   }
 });
 
+app.post('/api/projects/:id/restore', async (req, res) => {
+    try {
+        const result = await db.update(projects)
+            .set({ deletedAt: null, updatedAt: new Date() })
+            .where(eq(projects.id, req.params.id))
+            .returning();
+        res.json(result[0]);
+    } catch (error) { res.status(500).json({ error: '恢复项目失败' }); }
+});
+
 app.delete('/api/projects/:id', async (req, res) => {
   try {
-    await db.delete(projects).where(eq(projects.id, req.params.id));
+    // Soft delete
+    await db.update(projects)
+        .set({ deletedAt: new Date(), updatedAt: new Date() })
+        .where(eq(projects.id, req.params.id));
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: '删除项目失败' }); }
+});
+
+app.delete('/api/projects/:id/permanent', async (req, res) => {
+    try {
+        await db.delete(projects).where(eq(projects.id, req.params.id));
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ error: '永久删除项目失败' }); }
 });
 
 // 2. 用户
@@ -192,12 +228,12 @@ app.post('/api/ai/chat', async (req, res) => {
         projectContext = aiContextCache[cacheKey].data;
         stats = aiContextCache[cacheKey].stats;
     } else {
-        const conditions = [];
+        const conditions = [isNull(projects.deletedAt)]; // Exclude deleted projects
         if (userRole !== 'admin' && userDepartment) {
             conditions.push(eq(projects.department, userDepartment));
         }
         const filteredProjects = await db.query.projects.findMany({
-            where: conditions.length > 0 ? and(...conditions) : undefined
+            where: and(...conditions)
         });
 
         stats = {
