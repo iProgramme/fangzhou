@@ -41,7 +41,7 @@ export const EARLY_COLUMNS: ColumnDef[] = [
     { key: 'contractStatus', header: '合同准备', inputType: 'select', dictKey: '合同准备' },
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
     { key: 'clientName', header: '甲方名称', inputType: 'text' },
-    { key: 'remarks', header: '备注', inputType: 'select', dictKey: '前期备注' }, // Special select for Early stage
+    { key: 'remarks', header: '是否靠谱', inputType: 'select', dictKey: '前期备注' }, // Special select for Early stage
     { key: 'contractLocation', header: '合同位置', inputType: 'select', dictKey: '合同位置' },
     { key: 'signingDate', header: '签订日期', inputType: 'date' },
     { key: 'consortium', header: '联合体单位', inputType: 'multi-select', dictKey: '联合体单位' },

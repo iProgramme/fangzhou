@@ -235,21 +235,23 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   const renderTimelineSection = (
       title: string, 
       items: TimelineEvent[], 
-      setItems: React.Dispatch<React.SetStateAction<TimelineEvent[]>>,
-      colorTheme: 'blue' | 'purple' = 'blue',
+      setItems: React.Dispatch<React.SetStateAction<TimelineEvent[]>> | null,
+      colorTheme: 'primary' | 'accent' = 'primary',
       showCheckbox: boolean = false
   ) => (
-      <div className="flex flex-col h-1/2 overflow-hidden border-b last:border-0 pb-4 last:pb-0">
+      <div className="flex flex-col flex-1 basis-1/2 min-w-0 h-full overflow-hidden">
           <div className="flex-shrink-0 space-y-2 mb-4">
               <div className="flex items-center justify-between">
                   <h4 className="text-lg font-black flex items-center gap-2">{title}</h4>
-                  <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false}, ...items])} className={`text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 ${colorTheme === 'purple' ? 'bg-purple-600' : 'bg-black'}`}>
-                      <Plus className="h-3 w-3"/> 添加
-                  </button>
+                  {setItems && (
+                      <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false}, ...items])} className="text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 bg-primary">
+                          <Plus className="h-3 w-3"/> 添加
+                      </button>
+                  )}
               </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar -mr-4 pl-2 pt-2">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden pr-4 pl-1 pt-1 pb-10 custom-scrollbar">
               <div className="space-y-4 relative">
                   {items.length > 0 && <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-gray-100 rounded-full" />}
                   {items.map((ev, idx) => (
@@ -258,8 +260,10 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                               <div className="absolute left-0 top-0 h-10 w-10 z-20 flex items-center justify-center">
                                   <input 
                                     type="checkbox" 
+                                    disabled={!setItems}
                                     checked={!!ev.completed} 
                                     onChange={e => {
+                                        if (!setItems) return;
                                         const n=[...items]; 
                                         n[idx].completed=e.target.checked;
                                         if (e.target.checked) {
@@ -269,11 +273,11 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                         }
                                         setItems(n);
                                     }}
-                                    className="h-6 w-6 rounded-lg border-2 border-border bg-card text-purple-600 focus:ring-purple-200 cursor-pointer transition-all"
+                                    className="h-6 w-6 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20 cursor-pointer transition-all disabled:cursor-default"
                                   />
                               </div>
                           ) : (
-                              <div className={`absolute left-0 top-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm z-10 border-4 border-white transition-colors ${ev.type === 'milestone' ? 'bg-amber-100 text-amber-600' : ev.type === 'payment' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                              <div className={`absolute left-0 top-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm z-10 border-4 border-white transition-colors ${ev.type === 'milestone' ? 'bg-amber-100 text-amber-600' : ev.type === 'payment' ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
                                   {ev.type === 'milestone' ? <Milestone className="h-5 w-5" /> : ev.type === 'payment' ? <Coins className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
                               </div>
                           )}
@@ -281,23 +285,43 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                               <div className="flex gap-2 mb-2">
                                   <div className="flex flex-col gap-1 flex-1">
                                       <div className="flex items-center gap-1">
-                                          <span className="text-[9px] font-black text-muted-foreground uppercase">计划日期</span>
-                                          <input type="date" className="h-6 text-[10px] font-bold border border-border bg-card rounded px-1.5 shadow-sm outline-none focus:border-primary" value={ev.date} onChange={e => {const n=[...items]; n[idx].date=e.target.value; setItems(n);}} />
+                                          <span className="text-[9px] font-black text-muted-foreground uppercase">{ev.completed ? '计划日期' : '日期'}</span>
+                                          {setItems ? (
+                                              <input type="date" className="h-6 text-[10px] font-bold border border-border bg-card rounded px-1.5 shadow-sm outline-none focus:border-primary" value={ev.date} onChange={e => {const n=[...items]; n[idx].date=e.target.value; setItems(n);}} />
+                                          ) : (
+                                              <span className="text-[10px] font-bold text-foreground">{ev.date}</span>
+                                          )}
                                       </div>
                                       {ev.completed && (
                                           <div className="flex items-center gap-1 animate-in slide-in-from-left-2">
-                                              <span className="text-[9px] font-black text-green-600 uppercase">完成日期</span>
-                                              <input type="date" className="h-6 text-[10px] font-bold border border-green-200 bg-green-50/30 text-green-700 rounded px-1.5 shadow-sm outline-none focus:border-green-500" value={ev.completedAt || ''} onChange={e => {const n=[...items]; n[idx].completedAt=e.target.value; setItems(n);}} />
+                                              <span className="text-[9px] font-black text-emerald-600 uppercase">完成于</span>
+                                              {setItems ? (
+                                                  <input type="date" className="h-6 text-[10px] font-bold border border-emerald-200 bg-emerald-50/30 text-emerald-700 rounded px-1.5 shadow-sm outline-none focus:border-emerald-500" value={ev.completedAt || ''} onChange={e => {const n=[...items]; n[idx].completedAt=e.target.value; setItems(n);}} />
+                                              ) : (
+                                                  <span className="text-[10px] font-bold text-emerald-700">{ev.completedAt}</span>
+                                              )}
                                           </div>
                                       )}
                                   </div>
-                                  <select className="h-7 text-[10px] font-bold border border-border bg-card rounded px-2 shadow-sm outline-none focus:border-primary" value={ev.type} onChange={e => {const n=[...items]; n[idx].type=e.target.value as any; setItems(n);}}>
-                                      <option value="progress">普通</option><option value="milestone">重要</option><option value="payment">财务</option>
-                                  </select>
-                                  <button type="button" onClick={() => confirmCustom('删除', '确定删除？', () => setItems(items.filter((_,i)=>i!==idx)), true)} className="h-7 w-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"><Trash2 className="h-3 w-3"/></button>
+                                  {setItems && (
+                                      <>
+                                          <select className="h-7 text-[10px] font-bold border border-border bg-card rounded px-2 shadow-sm outline-none focus:border-primary" value={ev.type} onChange={e => {const n=[...items]; n[idx].type=e.target.value as any; setItems(n);}}>
+                                              <option value="progress">普通</option><option value="milestone">重要</option><option value="payment">财务</option>
+                                          </select>
+                                          <button type="button" onClick={() => confirmCustom('删除', '确定删除？', () => setItems(items.filter((_,i)=>i!==idx)), true)} className="h-7 w-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"><Trash2 className="h-3 w-3"/></button>
+                                      </>
+                                  )}
                               </div>
-                              <input className={`w-full text-sm font-black bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary outline-none px-1 transition-all placeholder:text-gray-300 mb-1 ${ev.completed ? 'line-through' : ''}`} placeholder="任务名称..." value={ev.title} onChange={e => {const n=[...items]; n[idx].title=e.target.value; setItems(n);}} />
-                              <textarea className={`w-full text-[11px] font-medium text-gray-600 bg-gray-50/50 rounded p-2 border-0 outline-none resize-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-gray-300 ${ev.completed ? 'line-through' : ''}`} placeholder="补充说明..." rows={2} value={ev.description} onChange={e => {const n=[...items]; n[idx].description=e.target.value; setItems(n);}} />
+                              {setItems ? (
+                                  <input className={`w-full text-sm font-black bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary outline-none px-1 transition-all placeholder:text-gray-300 mb-1 ${ev.completed ? 'line-through' : ''}`} placeholder="任务名称..." value={ev.title} onChange={e => {const n=[...items]; n[idx].title=e.target.value; setItems(n);}} />
+                              ) : (
+                                  <h5 className={`text-sm font-black text-foreground mb-1 ${ev.completed ? 'line-through' : ''}`}>{ev.title}</h5>
+                              )}
+                              {setItems ? (
+                                  <textarea className={`w-full text-[11px] font-medium text-gray-600 bg-gray-50/50 rounded p-2 border-0 outline-none resize-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-gray-300 ${ev.completed ? 'line-through' : ''}`} placeholder="补充说明..." rows={2} value={ev.description} onChange={e => {const n=[...items]; n[idx].description=e.target.value; setItems(n);}} />
+                              ) : (
+                                  <p className={`text-[11px] font-medium text-muted-foreground leading-relaxed ${ev.completed ? 'line-through' : ''}`}>{ev.description}</p>
+                              )}
                           </div>
                       </div>
                   ))}
@@ -420,16 +444,16 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
 
       {isModalOpen && (
           <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/70 backdrop-blur-lg p-4 animate-in fade-in" onClick={() => setIsModalOpen(false)}>
-              <div className="bg-card w-full max-w-7xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl p-8 flex flex-col border border-border" onClick={e => e.stopPropagation()}>
+              <div className="bg-card w-full max-w-[95vw] h-[90vh] overflow-hidden rounded-3xl shadow-2xl p-8 flex flex-col border border-border" onClick={e => e.stopPropagation()}>
                   {toast && (
                       <div className={`mb-4 p-3 rounded-xl flex items-center gap-3 animate-in slide-in-from-top-4 ${toast.type === 'success' ? 'bg-green-500/10 text-green-600 border border-green-500/20' : 'bg-destructive/10 text-destructive border border-destructive/20'}`}>
                           {toast.type === 'success' ? <CheckCircle2 className="h-5 w-5" /> : <XIcon className="h-5 w-5" />}
                           <span className="text-sm font-bold">{toast.message}</span>
                       </div>
                   )}
-                  <div className="flex items-center justify-between mb-6 border-b border-border pb-4"><h3 className="text-2xl font-black text-foreground">{modalMode === 'add' ? '创建项目' : '编辑项目'}</h3><button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors"><X className="h-6 w-6"/></button></div>
+                  <div className="flex items-center justify-between mb-6 border-b border-border pb-4 shrink-0"><h3 className="text-2xl font-black text-foreground">{modalMode === 'add' ? '创建项目' : '编辑项目'}</h3><button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors"><X className="h-6 w-6"/></button></div>
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 overflow-hidden">
-                      <div className="lg:col-span-8 overflow-y-auto custom-scrollbar pr-4">
+                      <div className="lg:col-span-6 overflow-y-auto custom-scrollbar pr-6 pb-10">
                           <form onSubmit={handleSubmit} className="space-y-8">
                               <div className="flex items-center gap-4 bg-muted/30 p-4 rounded-2xl border-2 border-dashed border-border mb-6">
                                   <label className="w-24 flex-shrink-0 text-xs font-black text-muted-foreground uppercase text-right tracking-widest">项目状态灯</label>
@@ -450,6 +474,26 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                               <span className={`text-xs font-bold ${currentForm.statusLight === opt.val ? 'text-primary' : 'text-muted-foreground'}`}>{opt.label}</span>
                                           </button>
                                       ))}
+                                  </div>
+                              </div>
+
+                              {/* Lifecycle Stage Controls - Moved from View Panel */}
+                              <div className="flex items-center gap-4 bg-primary/5 p-4 rounded-2xl border border-primary/10 mb-6">
+                                  <label className="w-24 flex-shrink-0 text-xs font-black text-primary uppercase text-right tracking-widest">生命周期</label>
+                                  <div className="flex flex-wrap gap-2">
+                                      {currentForm.stage === ProjectStage.EARLY && (
+                                          <button type="button" onClick={() => setCurrentForm({ ...currentForm, stage: ProjectStage.GROUP_PROGRESS })} className="px-4 py-2 bg-primary text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:opacity-90 flex items-center gap-2"><Plus className="h-4 w-4" /> 转为进行中</button>
+                                      )}
+                                      {currentForm.stage === ProjectStage.GROUP_PROGRESS && (
+                                          <>
+                                              <button type="button" onClick={() => setCurrentForm({ ...currentForm, stage: ProjectStage.COMPLETED })} className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-emerald-700 flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> 转为已完成</button>
+                                              <button type="button" onClick={() => setCurrentForm({ ...currentForm, stage: ProjectStage.EARLY })} className="px-4 py-2 bg-amber-500 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-amber-600 flex items-center gap-2"><History className="h-4 w-4" /> 回退为前期项目</button>
+                                          </>
+                                      )}
+                                      {currentForm.stage === ProjectStage.COMPLETED && (
+                                          <button type="button" onClick={() => setCurrentForm({ ...currentForm, stage: ProjectStage.GROUP_PROGRESS })} className="px-4 py-2 bg-amber-500 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-amber-600 flex items-center gap-2"><History className="h-4 w-4" /> 回退为进行中</button>
+                                      )}
+                                      <span className="ml-2 px-3 py-2 bg-white border rounded-xl text-[10px] font-black text-muted-foreground uppercase">当前：{currentForm.stage}</span>
                                   </div>
                               </div>
 
@@ -574,14 +618,14 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                               </div>
                           </form>
                       </div>
-                      <div className="lg:col-span-4 border-l border-border pl-8 flex flex-col h-full overflow-hidden bg-muted/10 rounded-r-3xl -my-8 py-8">
-                          <div className="flex-1 min-h-0 flex flex-col gap-8">
+                      <div className="lg:col-span-6 border-l border-border pl-8 flex flex-col h-full overflow-hidden bg-muted/10 rounded-r-3xl -my-8 py-8">
+                          <div className="flex-1 min-h-0 flex flex-row gap-6 h-full">
                               {renderTimelineSection('重要工作记录', formTimeline, setFormTimeline, 'blue', false)}
                               {renderTimelineSection('工作计划', formNextPlan, setFormNextPlan, 'purple', true)}
                           </div>
                       </div>
                   </div>
-                  <div className="flex justify-end gap-4 border-t border-border pt-8 mt-6">
+                  <div className="flex justify-end gap-4 border-t border-border pt-6 mt-4 shrink-0">
                       <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-3 rounded-2xl border-2 border-border text-foreground font-black text-sm uppercase tracking-widest hover:bg-muted transition-all active:scale-95">取消</button>
                       <button onClick={handleSubmit} className="px-12 py-3 rounded-2xl bg-primary text-primary-foreground font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/20 hover:opacity-90 transition-all active:scale-95">保存</button>
                   </div>
@@ -591,20 +635,39 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
 
       {viewProject && (
           <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4 animate-in fade-in" onClick={() => setViewProject(null)}>
-             <div className="bg-card w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl flex flex-col md:flex-row border border-border" onClick={e => e.stopPropagation()}>
-                 <div className="p-12 md:w-2/3 border-r border-border"><div className="flex items-center gap-5 mb-10"><div className="h-14 w-14 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-inner"><FileText className="h-7 w-7" /></div><div className="space-y-1"><h3 className="text-4xl font-black tracking-tight text-foreground leading-none">{viewProject.name}</h3><p className="text-sm font-black text-muted-foreground uppercase tracking-widest">ID: {viewProject.id} • {viewProject.department}</p></div></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-10 text-sm">{columns.filter(c => c.key !== 'actions' && c.key !== 'name').map(col => (<div key={col.key as string} className="space-y-2"><span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.2em]">{col.header}</span><div className="font-bold text-foreground text-lg leading-tight">{col.key === 'annualContract' ? formatMoney(getAnnualValue(viewProject, 'contractAmount')) : col.key === 'annualCollection' ? formatMoney(getAnnualValue(viewProject, 'collectedAmount')) : col.dictKey ? renderDictCell(viewProject[col.key as keyof Project] as string, col.dictKey) : (viewProject[col.key as keyof Project] === true ? '是' : viewProject[col.key as keyof Project] === false ? '否' : String(viewProject[col.key as keyof Project] || '-'))}</div></div>))}</div></div>
-                 <div className="bg-muted/30 p-12 md:w-1/3 flex flex-col"><div className="flex items-center gap-4 mb-10"><div className="h-12 w-12 rounded-2xl bg-card shadow-md flex items-center justify-center text-primary"><History className="h-6 w-6" /></div><h4 className="text-2xl font-black text-foreground">生命周期</h4></div>
-                 {viewProject.stage === ProjectStage.EARLY && (<button onClick={() => {const updated = { ...viewProject, stage: ProjectStage.GROUP_PROGRESS }; onEditProject?.(updated); setViewProject(updated);}} className="mb-8 w-full py-3 bg-primary text-primary-foreground rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:opacity-90"><Plus className="h-5 w-5" /> 转为进行中</button>)}
-                 {viewProject.stage === ProjectStage.GROUP_PROGRESS && (
-                     <div className="flex flex-col gap-3 mb-8">
-                         <button onClick={() => {const updated = { ...viewProject, stage: ProjectStage.COMPLETED }; onEditProject?.(updated); setViewProject(updated);}} className="w-full py-3 bg-emerald-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:bg-emerald-700"><CheckCircle2 className="h-5 w-5" /> 转为已完成</button>
-                         <button onClick={() => {const updated = { ...viewProject, stage: ProjectStage.EARLY }; onEditProject?.(updated); setViewProject(updated);}} className="w-full py-3 bg-amber-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:bg-amber-600"><History className="h-5 w-5" /> 回退为前期项目</button>
-                     </div>
-                 )}
-                 {viewProject.stage === ProjectStage.COMPLETED && (
-                     <button onClick={() => {const updated = { ...viewProject, stage: ProjectStage.GROUP_PROGRESS }; onEditProject?.(updated); setViewProject(updated);}} className="mb-8 w-full py-3 bg-amber-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:bg-amber-600"><History className="h-5 w-5" /> 回退为进行中</button>
-                 )}
-                 <div className="flex-1 relative space-y-8">{viewProject.timeline?.length ? viewProject.timeline.map((ev, idx) => (<div key={ev.id} className="relative pl-10">{idx !== viewProject.timeline!.length - 1 && <div className="absolute left-4 top-8 bottom-[-32px] w-[3px] bg-primary/10 rounded-full" />}<div className={`absolute left-0 top-1.5 h-8 w-8 rounded-2xl flex items-center justify-center shadow-md ${ev.type === 'milestone' ? 'bg-amber-500 shadow-amber-200' : ev.type === 'payment' ? 'bg-green-500 shadow-green-200' : 'bg-primary shadow-primary-200'}`}>{ev.type === 'milestone' ? <Milestone className="h-4 w-4 text-white" /> : <Clock className="h-4 w-4 text-white" />}</div><div className="space-y-1.5"><span className="text-[11px] font-black text-muted-foreground uppercase bg-card border border-border px-3 py-1 rounded-full shadow-sm">{ev.date}</span><h5 className="font-black text-foreground text-lg leading-tight">{ev.title}</h5><p className="text-sm text-muted-foreground font-bold leading-relaxed">{ev.description}</p></div></div>)) : (<div className="h-full flex flex-col items-center justify-center opacity-30 italic font-black text-muted-foreground text-sm uppercase tracking-widest">No Events Found</div>)}</div><button onClick={() => setViewProject(null)} className="mt-12 w-full py-4 bg-foreground text-background rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all hover:opacity-90">关闭面板</button></div>
+             <div className="bg-card w-full max-w-[95vw] h-[90vh] overflow-hidden rounded-[2.5rem] shadow-2xl flex flex-col md:flex-row border border-border" onClick={e => e.stopPropagation()}>
+                 <div className="p-12 md:w-1/2 border-r border-border overflow-y-auto custom-scrollbar">
+                    <div className="flex items-center gap-5 mb-10">
+                        <div className="h-14 w-14 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
+                            <FileText className="h-7 w-7" />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="text-4xl font-black tracking-tight text-foreground leading-none">{viewProject.name}</h3>
+                            <p className="text-sm font-black text-muted-foreground uppercase tracking-widest">ID: {viewProject.id} • {viewProject.department}</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-10 text-sm">
+                        {columns.filter(c => c.key !== 'actions' && c.key !== 'name').map(col => (
+                            <div key={col.key as string} className="space-y-2">
+                                <span className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.2em]">{col.header}</span>
+                                <div className="font-bold text-foreground text-lg leading-tight">
+                                    {col.key === 'annualContract' ? formatMoney(getAnnualValue(viewProject, 'contractAmount')) : 
+                                     col.key === 'annualCollection' ? formatMoney(getAnnualValue(viewProject, 'collectedAmount')) : 
+                                     col.dictKey ? renderDictCell(viewProject[col.key as keyof Project] as string, col.dictKey) : 
+                                     (viewProject[col.key as keyof Project] === true ? '是' : viewProject[col.key as keyof Project] === false ? '否' : String(viewProject[col.key as keyof Project] || '-'))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <button onClick={() => setViewProject(null)} className="mt-12 w-full py-4 bg-foreground text-background rounded-3xl font-black text-sm uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all hover:opacity-90">关闭详情面板</button>
+                 </div>
+                 
+                 <div className="bg-muted/30 p-12 md:w-1/2 flex flex-col overflow-hidden">
+                    <div className="flex-1 min-h-0 flex flex-row gap-8 h-full">
+                        {renderTimelineSection('重要工作记录', Array.isArray(viewProject.timeline) ? viewProject.timeline : [], null, 'primary', false)}
+                        {renderTimelineSection('工作计划', Array.isArray(viewProject.nextPlan) ? viewProject.nextPlan : [], null, 'primary', true)}
+                    </div>
+                 </div>
              </div>
           </div>
       )}
