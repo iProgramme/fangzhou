@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage } from '../types';
-import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown, Users } from 'lucide-react';
 import { nanoid } from 'nanoid';
 
 export interface ColumnDef {
@@ -30,12 +30,65 @@ const CustomMultiSelect = ({ value, onChange, options, isTree = false }: { value
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const toggleOption = (label: string) => {
-        const newSelected = selected.includes(label) ? selected.filter(s => s !== label) : [...selected, label];
-        onChange(newSelected.join(','));
+    const toggleOption = (label: string, isGroupClick: boolean = false) => {
+        let newSelected = [...selected];
+        
+        if (isGroupClick) {
+            const groupMembers = options.filter(o => o.group === label).map(o => o.label);
+            const isCurrentlySelected = selected.includes(label);
+            
+            if (isCurrentlySelected) {
+                newSelected = newSelected.filter(s => s !== label && !groupMembers.includes(s));
+            } else {
+                newSelected = Array.from(new Set([...newSelected, label, ...groupMembers]));
+            }
+        } else {
+            const isCurrentlySelected = selected.includes(label);
+            const item = options.find(o => o.label === label);
+            const parentGroup = item?.group;
+            
+            if (isCurrentlySelected) {
+                newSelected = newSelected.filter(s => s !== label && s !== parentGroup);
+            } else {
+                newSelected.push(label);
+                if (parentGroup) {
+                    const groupMembers = options.filter(o => o.group === parentGroup).map(o => o.label);
+                    const allMembersIn = groupMembers.every(m => newSelected.includes(m));
+                    if (allMembersIn) newSelected.push(parentGroup);
+                }
+            }
+        }
+        onChange(Array.from(new Set(newSelected)).join(','));
     };
 
     const filteredOptions = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
+
+    // Logic to display only groups if all members are selected, else show individuals
+    const displaySelected = useMemo(() => {
+        if (!isTree) return selected;
+        
+        const result: string[] = [];
+        const processedMembers = new Set<string>();
+        
+        // 1. Check for full groups
+        const groups = Array.from(new Set(options.map(o => o.group).filter(Boolean)));
+        groups.forEach(g => {
+            if (selected.includes(g)) {
+                result.push(`${g} (整组)`);
+                const members = options.filter(o => o.group === g).map(o => o.label);
+                members.forEach(m => processedMembers.add(m));
+            }
+        });
+        
+        // 2. Add remaining individual members
+        selected.forEach(s => {
+            if (!groups.includes(s) && !processedMembers.has(s)) {
+                result.push(s);
+            }
+        });
+        
+        return result;
+    }, [selected, options, isTree]);
 
     // Group options for tree view
     const groupedOptions = useMemo(() => {
@@ -55,10 +108,14 @@ const CustomMultiSelect = ({ value, onChange, options, isTree = false }: { value
                 onClick={() => setIsOpen(!isOpen)}
                 className="min-h-[36px] w-full rounded-xl border-2 border-border bg-card px-2 py-1 text-sm flex flex-wrap gap-1.5 cursor-pointer hover:border-primary/50 transition-all shadow-sm focus-within:ring-4 focus-within:ring-primary/10"
             >
-                {selected.length > 0 ? selected.map(s => (
+                {displaySelected.length > 0 ? displaySelected.map(s => (
                     <span key={s} className="bg-primary/10 text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 border border-primary/20">
                         {s}
-                        <X className="h-2.5 w-2.5 hover:text-destructive" onClick={(e) => { e.stopPropagation(); toggleOption(s); }} />
+                        <X className="h-2.5 w-2.5 hover:text-destructive" onClick={(e) => { 
+                            e.stopPropagation(); 
+                            const cleanLabel = s.replace(' (整组)', '');
+                            toggleOption(cleanLabel, s.includes('(整组)')); 
+                        }} />
                     </span>
                 )) : <span className="text-muted-foreground italic text-xs leading-[24px]">请选择 (支持部门与个人)</span>}
                 <div className="ml-auto self-center"><ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} /></div>
@@ -80,7 +137,7 @@ const CustomMultiSelect = ({ value, onChange, options, isTree = false }: { value
                             <div key={group} className="space-y-1">
                                 {isTree && (
                                     <div 
-                                        onClick={(e) => { e.stopPropagation(); toggleOption(group); }}
+                                        onClick={(e) => { e.stopPropagation(); toggleOption(group, true); }}
                                         className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${selected.includes(group) ? 'bg-primary text-white font-black' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}
                                     >
                                         <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -93,7 +150,7 @@ const CustomMultiSelect = ({ value, onChange, options, isTree = false }: { value
                                     {items.map(o => (
                                         <div 
                                             key={o.label} 
-                                            onClick={(e) => { e.stopPropagation(); toggleOption(o.label); }}
+                                            onClick={(e) => { e.stopPropagation(); toggleOption(o.label, false); }}
                                             className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${selected.includes(o.label) ? 'bg-primary/5 text-primary font-black' : 'hover:bg-muted'}`}
                                         >
                                             <span className="text-sm">{o.label}</span>
@@ -264,9 +321,51 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
 
   const getAnnualValue = (row: Project, key: 'contractAmount' | 'collectedAmount') => {
       if (selectedYear === 'all') {
-          return row.annualData?.reduce((sum, d) => sum + (d[key] || 0), 0) || 0;
+          return row.annualData?.reduce((sum, item) => sum + (item[key] || 0), 0) || 0;
       }
       return row.annualData?.find(d => d.year === selectedYear)?.[key] || 0;
+  };
+
+  // Helper to format team members for table display (matching form logic)
+  const renderTeamMembersCell = (value: string) => {
+      if (!value || !users) return value || '-';
+      const selected = value.split(',').map(s => s.trim()).filter(Boolean);
+      const result: string[] = [];
+      const processedMembers = new Set<string>();
+      
+      const groups = Array.from(new Set(users.map(u => u.department).filter(Boolean)));
+      
+      groups.forEach(g => {
+          const groupMembers = users.filter(u => u.department === g).map(u => u.name);
+          if (groupMembers.length > 0 && groupMembers.every(m => selected.includes(m))) {
+              result.push(`${g} (整组)`);
+              groupMembers.forEach(m => processedMembers.add(m));
+          }
+      });
+      
+      selected.forEach(s => {
+          if (!groups.includes(s) && !processedMembers.has(s)) {
+              result.push(s);
+          }
+      });
+
+      return (
+          <div className="flex flex-wrap gap-1">
+              {result.map(tag => (
+                  <span 
+                    key={tag} 
+                    style={{ 
+                        backgroundColor: 'hsl(var(--primary) / 0.1)', 
+                        color: 'hsl(var(--primary))',
+                        borderColor: 'hsl(var(--primary) / 0.2)'
+                    }}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold border"
+                  >
+                      {tag}
+                  </span>
+              ))}
+          </div>
+      );
   };
 
   const renderProgressBar = (value: any, row: Project) => {
@@ -469,7 +568,8 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                         else if (col.dictKey) cell = renderDictCell(row[col.key as keyof Project] as string, col.dictKey);
                         else {
                             const val = row[col.key as keyof Project]; 
-                            if (val === true) cell = <Check className="h-4 w-4 text-green-500" />;
+                            if (col.key === 'teamMembers') cell = renderTeamMembersCell(val as string);
+                            else if (val === true) cell = <Check className="h-4 w-4 text-green-500" />;
                             else if (val === false) cell = <XIcon className="h-4 w-4 text-red-300" />;
                             else if (Array.isArray(val)) cell = val.length > 0 ? (val[0].title || '已记录') : '-';
                             else cell = (val as React.ReactNode) || '-';
@@ -685,8 +785,8 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                       </div>
                       <div className="lg:col-span-6 border-l border-border pl-8 flex flex-col h-full overflow-hidden bg-muted/10 rounded-r-3xl -my-8 py-8">
                           <div className="flex-1 min-h-0 flex flex-row gap-6 h-full">
-                              {renderTimelineSection('重要工作记录', formTimeline, setFormTimeline, 'blue', false)}
-                              {renderTimelineSection('工作计划', formNextPlan, setFormNextPlan, 'purple', true)}
+                              {renderTimelineSection('重要工作记录', formTimeline, setFormTimeline, 'primary', false)}
+                              {renderTimelineSection('工作计划', formNextPlan, setFormNextPlan, 'primary', true)}
                           </div>
                       </div>
                   </div>
@@ -718,6 +818,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                 <div className="font-bold text-foreground text-lg leading-tight">
                                     {col.key === 'annualContract' ? formatMoney(getAnnualValue(viewProject, 'contractAmount')) : 
                                      col.key === 'annualCollection' ? formatMoney(getAnnualValue(viewProject, 'collectedAmount')) : 
+                                     col.key === 'teamMembers' ? renderTeamMembersCell(viewProject[col.key as keyof Project] as string) :
                                      col.dictKey ? renderDictCell(viewProject[col.key as keyof Project] as string, col.dictKey) : 
                                      (viewProject[col.key as keyof Project] === true ? '是' : viewProject[col.key as keyof Project] === false ? '否' : String(viewProject[col.key as keyof Project] || '-'))}
                                 </div>
