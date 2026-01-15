@@ -85,10 +85,10 @@ export interface Project {
 
   // Planning & Team
   nextPlan?: TimelineEvent[]; // 下一步工作计划 (Array of events)
-  teamMembers?: string; // 项目参与团队和人员
+  teamMembers?: string; 
   
   statusLight?: string; // 'red' | 'yellow' | 'green' | 'white'
-  collectionPlan?: { year: number; amount: number; completed: boolean }[];
+  collectionPlan?: { year: number; month: number; amount: number; completed: boolean }[];
 
   // Collection Plan Specifics
   collectionTarget?: string; // 收款 (String input as per requirement)

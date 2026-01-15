@@ -68,7 +68,7 @@ export const projects = pgTable('projects', {
   
   // 新增字段
   statusLight: text('status_light').default('green'), // 项目状态灯: 'red', 'yellow', 'green', 'white'
-  collectionPlan: jsonb('collection_plan').default([]), // 收款计划 [{year, amount, completed}]
+  collectionPlan: jsonb('collection_plan').default([]), // 收款计划 [{year, month, amount, completed}]
 
   // 收款计划特定字段
   collectionTarget: text('collection_target'), // 收款目标

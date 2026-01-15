@@ -186,7 +186,7 @@ const App: React.FC = () => {
       } else {
           let filters: any = null;
           if (currentPath === '/cycle/early') filters = { stage: 'early' };
-          else if (currentPath === '/cycle/collection') filters = { stage: 'collection' };
+          else if (currentPath === '/cycle/collection') filters = {}; // Fetch all for collection view to allow task-based filtering
           else if (currentPath === '/cycle/progress') filters = { stage: 'progress' };
           else if (currentPath === '/cycle/completed') filters = { stage: 'completed' };
           else if (currentPath.startsWith('/groups/')) {
@@ -409,7 +409,36 @@ const App: React.FC = () => {
     switch (currentPath) {
       case '/': return <Dashboard selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} selectedQuarter={selectedQuarter} projects={filteredSafeProjects} />;
       case '/cycle/early': return <ProjectTable title="前期项目跟进" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.EARLY} />;
-      case '/cycle/collection': return <ProjectTable title="年度收款计划" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.COLLECTION)} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COLLECTION} />;
+      
+      case '/cycle/collection': {
+          const collectionData = projects.filter(p => {
+              // Show if project is explicitly in COLLECTION stage
+              if (p.stage === ProjectStage.COLLECTION) return true;
+              
+              // OR if it has ANY completed collection tasks in the selected year/quarter
+              const hasCompletedTask = p.collectionPlan?.some(task => {
+                  if (!task.completed) return false;
+                  
+                  // Match Year
+                  const yearMatches = selectedYear === 'all' || task.year === selectedYear;
+                  if (!yearMatches) return false;
+                  
+                  // Match Quarter
+                  if (selectedQuarter !== 'all') {
+                      const q = Number(selectedQuarter);
+                      const taskQuarter = Math.ceil((task.month || 1) / 3);
+                      return taskQuarter === q;
+                  }
+                  
+                  return true;
+              });
+              
+              return hasCompletedTask;
+          });
+          
+          return <ProjectTable title="年度收款计划" data={collectionData} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COLLECTION} />;
+      }
+
       case '/cycle/progress': return <ProjectTable title="各组项目列表及进度" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)} columns={PROGRESS_COLUMNS as any} dictionaries={dictionaries} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.GROUP_PROGRESS} />;
       
       case '/cycle/completed': 

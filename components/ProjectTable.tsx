@@ -461,9 +461,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                           <div className="flex flex-1 items-center gap-6">
                                               <label className="w-12 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">年份</label>
                                               <input type="number" className="h-10 w-24 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={d.year} onChange={e => {const n=[...formAnnualData]; n[idx].year=Number(e.target.value); setFormAnnualData(n);}} />
-                                              <label className="w-16 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">合同额</label>
-                                              <input type="number" className="h-10 flex-1 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={d.contractAmount} onChange={e => {const n=[...formAnnualData]; n[idx].contractAmount=Number(e.target.value); setFormAnnualData(n);}} />
-                                              <label className="w-16 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">已收款</label>
+                                              <label className="w-24 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">已收款金额</label>
                                               <input type="number" className="h-10 flex-1 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={d.collectedAmount} onChange={e => {const n=[...formAnnualData]; n[idx].collectedAmount=Number(e.target.value); setFormAnnualData(n); const total = n.reduce((sum, item) => sum + (item.collectedAmount || 0), 0); setCurrentForm(prev => ({...prev, collectedAmount: total})); }} />
                                           </div>
                                           <button type="button" onClick={() => {const n = formAnnualData.filter((_,i)=>i!==idx); setFormAnnualData(n); const total = n.reduce((sum, item) => sum + (item.collectedAmount || 0), 0); setCurrentForm(prev => ({...prev, collectedAmount: total})); }} className="h-10 w-10 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-card rounded-lg transition-all border border-transparent hover:border-border shadow-sm"><Trash2 className="h-4 w-4"/></button>
@@ -471,15 +469,73 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                               </div>
 
                               <div className="pt-6 border-t-2 border-border space-y-4">
-                                  <div className="flex items-center justify-between"><h4 className="text-lg font-black flex items-center gap-3 text-foreground"><CheckCircle2 className="h-5 w-5 text-green-500" /> 未来收款计划任务</h4><button type="button" onClick={() => setFormCollectionPlan([...formCollectionPlan, {year: selectedYear === 'all' ? new Date().getFullYear() : selectedYear, amount: 0, completed: false}])} className="text-xs font-black text-primary px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10 transition-all hover:bg-primary/10">+ 添加计划项</button></div>
+                                  <div className="flex items-center justify-between"><h4 className="text-lg font-black flex items-center gap-3 text-foreground"><CheckCircle2 className="h-5 w-5 text-green-500" /> 未来收款计划任务</h4><button type="button" onClick={() => setFormCollectionPlan([...formCollectionPlan, {year: selectedYear === 'all' ? new Date().getFullYear() : selectedYear, month: new Date().getMonth() + 1, amount: 0, completed: false}])} className="text-xs font-black text-primary px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10 transition-all hover:bg-primary/10">+ 添加计划项</button></div>
                                   <div className="space-y-3">{formCollectionPlan.map((p, idx) => (
                                       <div key={idx} className="relative p-4 rounded-2xl bg-muted/20 border border-border flex flex-col sm:flex-row sm:items-center gap-4">
-                                          <div className="flex flex-1 items-center gap-6">
-                                              <input type="checkbox" checked={p.completed} onChange={e => {const n=[...formCollectionPlan]; n[idx].completed=e.target.checked; setFormCollectionPlan(n);}} className="h-6 w-6 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20" />
-                                              <label className="w-12 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">年份</label>
-                                              <input type="number" className="h-10 w-24 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={p.year} onChange={e => {const n=[...formCollectionPlan]; n[idx].year=Number(e.target.value); setFormCollectionPlan(n);}} />
-                                              <label className="w-16 flex-shrink-0 text-[10px] font-black text-muted-foreground uppercase text-right tracking-widest">计划金额</label>
-                                              <input type="number" className="h-10 flex-1 bg-card border-2 border-border rounded-lg px-3 text-sm font-black text-foreground shadow-sm focus:border-primary outline-none" value={p.amount} onChange={e => {const n=[...formCollectionPlan]; n[idx].amount=Number(e.target.value); setFormCollectionPlan(n);}} />
+                                          <div className="flex flex-1 items-center gap-4 flex-wrap">
+                                              <input 
+                                                type="checkbox" 
+                                                checked={p.completed} 
+                                                onChange={e => {
+                                                    const isChecking = e.target.checked;
+                                                    if (isChecking) {
+                                                        confirmCustom(
+                                                            '确认完成',
+                                                            `您确定要标记该笔 ${p.year}年${p.month}月 的收款 (¥${p.amount.toLocaleString()}) 已完成吗？系统将自动将其加总到年度汇总中。`,
+                                                            () => {
+                                                                const n = [...formCollectionPlan];
+                                                                n[idx].completed = true;
+                                                                setFormCollectionPlan(n);
+                                                                
+                                                                setFormAnnualData(prev => {
+                                                                    const existing = prev.find(d => d.year === p.year);
+                                                                    let next;
+                                                                    if (existing) {
+                                                                        next = prev.map(d => d.year === p.year ? { ...d, collectedAmount: (d.collectedAmount || 0) + p.amount } : d);
+                                                                    } else {
+                                                                        next = [...prev, { year: p.year, contractAmount: 0, collectedAmount: p.amount }];
+                                                                    }
+                                                                    const total = next.reduce((sum, item) => sum + (item.collectedAmount || 0), 0);
+                                                                    setCurrentForm(curr => ({...curr, collectedAmount: total}));
+                                                                    return next;
+                                                                });
+                                                            }
+                                                        );
+                                                    } else {
+                                                        confirmCustom(
+                                                            '取消确认',
+                                                            `确定要取消该笔 ${p.year}年${p.month}月 的收款标记吗？系统将自动从年度汇总中扣除 ¥${p.amount.toLocaleString()}。`,
+                                                            () => {
+                                                                const n = [...formCollectionPlan];
+                                                                n[idx].completed = false;
+                                                                setFormCollectionPlan(n);
+
+                                                                setFormAnnualData(prev => {
+                                                                    const next = prev.map(d => d.year === p.year ? { ...d, collectedAmount: Math.max(0, (d.collectedAmount || 0) - p.amount) } : d);
+                                                                    const total = next.reduce((sum, item) => sum + (item.collectedAmount || 0), 0);
+                                                                    setCurrentForm(curr => ({...curr, collectedAmount: total}));
+                                                                    return next;
+                                                                });
+                                                            }
+                                                        );
+                                                    }
+                                                }} 
+                                                className="h-6 w-6 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20 cursor-pointer" 
+                                              />
+                                              <div className="flex items-center gap-2">
+                                                  <label className="text-[10px] font-black text-muted-foreground uppercase">年份</label>
+                                                  <input type="number" disabled={p.completed} className="h-9 w-20 bg-card border-2 border-border rounded-lg px-2 text-xs font-black disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed" value={p.year} onChange={e => {const n=[...formCollectionPlan]; n[idx].year=Number(e.target.value); setFormCollectionPlan(n);}} />
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                  <label className="text-[10px] font-black text-muted-foreground uppercase">月份</label>
+                                                  <select disabled={p.completed} className="h-9 w-20 bg-card border-2 border-border rounded-lg px-1 text-xs font-black disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed" value={p.month} onChange={e => {const n=[...formCollectionPlan]; n[idx].month=Number(e.target.value); setFormCollectionPlan(n);}}>
+                                                      {Array.from({length: 12}, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}月</option>)}
+                                                  </select>
+                                              </div>
+                                              <div className="flex flex-1 items-center gap-2 min-w-[150px]">
+                                                  <label className="text-[10px] font-black text-muted-foreground uppercase">计划金额</label>
+                                                  <input type="number" disabled={p.completed} className="h-9 flex-1 bg-card border-2 border-border rounded-lg px-3 text-xs font-black disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed" value={p.amount} onChange={e => {const n=[...formCollectionPlan]; n[idx].amount=Number(e.target.value); setFormCollectionPlan(n);}} />
+                                              </div>
                                           </div>
                                           <button type="button" onClick={() => setFormCollectionPlan(formCollectionPlan.filter((_,i)=>i!==idx))} className="h-10 w-10 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-card rounded-lg transition-all border border-transparent hover:border-border shadow-sm"><Trash2 className="h-4 w-4"/></button>
                                       </div>))}</div>
