@@ -39,6 +39,8 @@ export const projects = pgTable('projects', {
   contractStatus: text('contract_status'), // 合同准备状态
   name: text('name').notNull(), // 项目名称
   clientName: text('client_name'), // 甲方名称
+  internalCollaboration: text('internal_collaboration'), // 院内合作所
+  preliminaryType: text('preliminary_type'), // 前期类型
   workProgress: text('work_progress'), // 工作进展
   remarks: text('remarks'), // 备注
   

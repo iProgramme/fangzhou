@@ -62,6 +62,8 @@ export interface Project {
   contractStatus?: string; // 合同准备
   name: string; // 项目(合同)名称
   clientName?: string; // 甲方名称
+  internalCollaboration?: string; // 院内合作所
+  preliminaryType?: string; // 前期类型
   workProgress?: string; // 工作进展
   remarks?: string; // 备注
   
