@@ -1,9 +1,9 @@
 # Stage 1: Build Frontend
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Install dependencies (including devDependencies for build)
+# Install dependencies
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -13,18 +13,13 @@ COPY . .
 # Build React frontend
 RUN npm run build
 
-# Remove node_modules to clear cache for next stage (optional but good practice)
-# RUN rm -rf node_modules
-
 # Stage 2: Production Runtime
 FROM node:20-slim
 
 WORKDIR /app
 
-# Install production dependencies only
+# Install production dependencies
 COPY package.json package-lock.json ./
-# Convert devDependencies (like tsx) to dependencies or install all
-# For simplicity in this setup, we install everything to ensure tsx works
 RUN npm install
 
 # Copy built frontend assets
@@ -35,7 +30,9 @@ COPY --from=builder /app/server ./server
 COPY --from=builder /app/db ./db
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/styles ./styles
-COPY --from=builder /app/public ./public
+COPY --from=builder /app/seed.ts ./
+COPY --from=builder /app/types.ts ./
+COPY --from=builder /app/services ./services
 
 # Expose the port
 EXPOSE 3001

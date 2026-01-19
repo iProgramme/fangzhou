@@ -1,34 +1,49 @@
-# 项目部署指南 (Docker + SQLite)
+# 项目部署记录 (TencentOS + Docker + SQLite)
 
-本项目已针对单机 Docker 部署进行优化，集成了 SQLite 数据库，无需额外部署数据库服务。
+本文档记录了在腾讯云服务器 (TencentOS) 上部署本项目的完整过程及常见问题解决。
 
-## 前置要求
+## 0. 环境准备 (已完成)
 
-- 一台 Linux 服务器 (推荐 Ubuntu 22.04/24.04, 2核 2G 内存)
-- 已安装 Docker 和 Docker Compose (或直接使用 Docker 命令)
+### Docker 安装与优化
+服务器已安装 Docker `26.1.3`。
 
-## 快速部署 (一键命令)
-
-### 1. 构建镜像
-
-在项目根目录下运行：
-
+**配置腾讯云镜像加速 (解决构建超时):**
 ```bash
+echo '{"registry-mirrors": ["https://mirror.ccs.tencentyun.com"]}' > /etc/docker/daemon.json
+systemctl restart docker
+```
+
+**配置虚拟内存 (解决 2G/4G 内存构建时崩溃):**
+```bash
+fallocate -l 2G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+```
+
+---
+
+## 1. 首次部署流程
+
+### 获取代码
+```bash
+cd /root
+git clone -b docker https://github.com/iProgramme/fangzhou.git
+cd fangzhou
+```
+
+### 构建镜像
+```bash
+# 构建过程中如果遇到 COPY public 报错，请确保 Dockerfile 中已删除相关行
 docker build -t fangzhou-app .
 ```
 
-### 2. 运行容器
-
-运行以下命令启动服务。我们映射了两个目录到宿主机，以保证数据持久化：
-- `/root/fangzhou-data`: 存放 SQLite 数据库文件
-- `/root/fangzhou-uploads`: 存放上传的图片/文件 (预留)
-
+### 启动容器
 ```bash
-# 确保宿主机目录存在
 mkdir -p /root/fangzhou-data
 mkdir -p /root/fangzhou-uploads
 
-# 启动容器
 docker run -d \
   --name fangzhou \
   -p 80:3001 \
@@ -38,55 +53,37 @@ docker run -d \
   fangzhou-app
 ```
 
-现在，你可以通过浏览器访问 `http://你的服务器IP` 使用系统了。
-
----
-
-## 数据库迁移 (首次部署或更新结构后)
-
-由于 SQLite 是文件型数据库，首次启动或更新表结构后，需要在容器内执行迁移命令：
-
+### 初始化数据库 (关键)
 ```bash
-# 进入容器执行迁移
+# 同步表结构
 docker exec -it fangzhou npx drizzle-kit push
-```
-
-或者初始化种子数据 (可选):
-```bash
+# 填充初始数据
 docker exec -it fangzhou npx tsx seed.ts
 ```
 
 ---
 
-## 运维指南
+## 2. 常见部署问题 (FAQ)
 
-### 查看日志
+1. **构建失败：`node:20-alpine` 无法拉取**
+   - 解决：配置腾讯云镜像源，或将 Dockerfile 基础镜像改为 `node:20-slim`。
+2. **构建失败：`COPY /app/public ./public` not found**
+   - 原因：项目根目录下没有 `public` 目录。
+   - 解决：在 Dockerfile 中删除该复制指令。
+3. **构建失败：`RUN npm run build` 卡死或报错**
+   - 原因：通常是内存不足导致编译进程被杀。
+   - 解决：按照步骤 0 配置 2G 的 Swap 虚拟内存。
+
+---
+
+## 3. 日常更新流程
+
+1. 本地代码 `git push`
+2. 服务器执行更新脚本 (建议存为 `deploy.sh`):
 ```bash
-docker logs -f fangzhou
+git pull
+docker build -t fangzhou-app .
+docker stop fangzhou
+docker rm fangzhou
+# 重新运行启动命令
 ```
-
-### 备份数据 (非常简单)
-因为使用的是 SQLite，备份只需要复制文件即可。
-
-```bash
-# 备份数据库
-cp /root/fangzhou-data/local.db /root/fangzhou-data/local.db.backup_$(date +%Y%m%d)
-
-# 恢复数据库
-cp /root/fangzhou-data/local.db.backup_20240101 /root/fangzhou-data/local.db
-# 然后重启容器
-docker restart fangzhou
-```
-
-### 更新部署
-1. `git pull` 拉取最新代码
-2. `docker stop fangzhou` 停止旧容器
-3. `docker rm fangzhou` 删除旧容器
-4. `docker build -t fangzhou-app .` 重新构建
-5. 再次运行启动命令
-
-## 本地开发
-
-1. 安装依赖: `npm install`
-2. 启动开发服务器: `npm run dev`
-3. 数据库会自动在 `data/local.db` 生成。

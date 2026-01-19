@@ -421,8 +421,20 @@ const App: React.FC = () => {
               // Show if project is explicitly in COLLECTION stage
               if (p.stage === ProjectStage.COLLECTION) return true;
               
+              // Safely parse collectionPlan (handle string or array)
+              let plan = [];
+              try {
+                  if (Array.isArray(p.collectionPlan)) {
+                      plan = p.collectionPlan;
+                  } else if (typeof p.collectionPlan === 'string') {
+                      plan = JSON.parse(p.collectionPlan);
+                  }
+              } catch (e) {
+                  plan = [];
+              }
+              
               // OR if it has ANY completed collection tasks in the selected year/quarter
-              const hasCompletedTask = p.collectionPlan?.some(task => {
+              const hasCompletedTask = Array.isArray(plan) && plan.some((task: any) => {
                   if (!task.completed) return false;
                   
                   // Match Year
