@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, Calendar, Lock, X as XIcon, CheckCircle, AlertCircle, HelpCircle } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -7,12 +7,25 @@ import GroupProjectManager from './components/GroupProjectManager';
 import Settings from './components/Settings';
 import Watermark from './components/Watermark';
 import Login from './components/Login';
-import RecycleBin from './components/RecycleBin'; // Import RecycleBin
-import AIChat from './components/AIChat'; // Import AIChat
+import RecycleBin from './components/RecycleBin';
+import AIChat from './components/AIChat';
 import { CURRENT_USER } from './services/mockData';
 import { fetchProjects, createProject, updateProject, deleteProject, fetchUsers, fetchDictionaries, updateDictionary, fetchLogs, updateUser } from './services/api';
 import { EARLY_COLUMNS, COLLECTION_COLUMNS, PROGRESS_COLUMNS, COMPLETED_COLUMNS } from './constants';
-import { ProjectStage, DEPARTMENT_SLUGS, Project, OperationLog, User, DictItem } from './types'; // Import User type
+import { ProjectStage, DEPARTMENT_SLUGS, Project, OperationLog, User, DictItem } from './types';
+
+// Helper to safely parse JSON strings from SQLite
+const safeParseJSON = (data: any, defaultValue: any = []) => {
+    if (Array.isArray(data)) return data;
+    if (typeof data === 'string') {
+        try {
+            return JSON.parse(data) || defaultValue;
+        } catch (e) {
+            return defaultValue;
+        }
+    }
+    return defaultValue;
+};
 
 const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -107,10 +120,18 @@ const App: React.FC = () => {
     return storedUser ? JSON.parse(storedUser) : null;
   });
 
-  // Derive availableYears from dictionaries
-  const availableYears = React.useMemo(() => {
-    return dictionaries?.['系统年份']?.map((d: DictItem) => Number(d.label)) || [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1, new Date().getFullYear() + 2];
-  }, [dictionaries]);
+  // --- Computed Logic ---
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    projects.forEach(p => {
+        const annualData = safeParseJSON(p.annualData);
+        annualData?.forEach((d: any) => years.add(d.year));
+        const collectionPlan = safeParseJSON(p.collectionPlan);
+        collectionPlan?.forEach((d: any) => years.add(d.year));
+    });
+    if (years.size === 0) return [2024, 2025, 2026];
+    return Array.from(years).sort((a, b) => b - a);
+  }, [projects]);
 
   // Function to handle login
   const handleLogin = (username: string, department?: string, role?: string) => {
@@ -191,7 +212,7 @@ const App: React.FC = () => {
       } else {
           let filters: any = null;
           if (currentPath === '/cycle/early') filters = { stage: 'early' };
-          else if (currentPath === '/cycle/collection') filters = {}; // Fetch all for collection view to allow task-based filtering
+          else if (currentPath === '/cycle/collection') filters = {};
           else if (currentPath === '/cycle/progress') filters = { stage: 'progress' };
           else if (currentPath === '/cycle/completed') filters = { stage: 'completed' };
           else if (currentPath.startsWith('/groups/')) {
@@ -215,55 +236,6 @@ const App: React.FC = () => {
     };
     loadData();
   }, [currentPath, dictionaries, isLoggedIn]);
-
-  // Filtered Projects based on Year and Quarter
-  const filteredProjects = React.useMemo(() => {
-    return projects.filter(p => {
-      // 1. Year Filter
-      if (selectedYear !== 'all') {
-          const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
-          const hasYearlyData = p.annualData?.some(d => d.year === selectedYear);
-          const isEarlyThisYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
-          const signedThisYear = p.signingDate?.startsWith(selectedYear.toString());
-          
-          const matchesYear = hasNoYearInfo || hasYearlyData || isEarlyThisYear || signedThisYear;
-          if (!matchesYear) return false;
-      }
-
-      // 2. Quarter Filter
-      if (selectedQuarter !== 'all') {
-        const q = Number(selectedQuarter);
-        let matchesQuarter = false;
-        
-        // Check signingDate
-        if (p.signingDate) {
-          const month = parseInt(p.signingDate.split('-')[1]);
-          if (Math.ceil(month / 3) === q) matchesQuarter = true;
-        }
-        
-        // Check annualData collectionDate for the current selected year
-        if (selectedYear !== 'all') {
-            const yearlyRecord = p.annualData?.find(d => d.year === selectedYear);
-            if (yearlyRecord?.collectionDate) {
-                const month = parseInt(yearlyRecord.collectionDate.split('-')[1]);
-                if (Math.ceil(month / 3) === q) matchesQuarter = true;
-            }
-        } else {
-            // If year is all, check if ANY annual data matches the quarter
-            const hasQuarterData = p.annualData?.some(d => {
-                if (!d.collectionDate) return false;
-                const month = parseInt(d.collectionDate.split('-')[1]);
-                return Math.ceil(month / 3) === q;
-            });
-            if (hasQuarterData) matchesQuarter = true;
-        }
-        
-        if (!matchesQuarter) return false;
-      }
-
-      return true;
-    });
-  }, [projects, selectedYear, selectedQuarter]);
 
   const refreshLogs = async () => {
       const l = await fetchLogs();
@@ -311,12 +283,7 @@ const App: React.FC = () => {
   const handleUpdateDictionary = async (key: string, values: DictItem[]) => {
       try {
         const updated = await updateDictionary(key, values);
-        // Silent state update to avoid component remounts
-        setDictionaries((prev: any) => {
-            if (prev[key] === updated.items) return prev;
-            return {...prev, [key]: updated.items};
-        });
-        // Background fetch logs without setting global loading
+        setDictionaries((prev: any) => ({...prev, [key]: updated.items}));
         fetchLogs().then(l => setLogs(l));
       } catch (e) { alertCustom('失败', '字典更新失败'); }
   };
@@ -337,20 +304,20 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
-    const isAdmin = currentUser?.role === 'admin';
+    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'manager';
     
-    // Defensive check for projects data to prevent crashes on legacy data
     const safeProjects = projects.map(p => ({
         ...p,
-        timeline: Array.isArray(p.timeline) ? p.timeline : [],
-        nextPlan: Array.isArray(p.nextPlan) ? p.nextPlan : []
+        timeline: safeParseJSON(p.timeline),
+        nextPlan: safeParseJSON(p.nextPlan),
+        annualData: safeParseJSON(p.annualData),
+        collectionPlan: safeParseJSON(p.collectionPlan)
     }));
 
-    // Filtered Projects based on Year and Quarter (using safe logic)
     const filteredSafeProjects = safeProjects.filter(p => {
       if (selectedYear !== 'all') {
           const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
-          const hasYearlyData = p.annualData?.some(d => d.year === selectedYear);
+          const hasYearlyData = p.annualData?.some((d: any) => d.year === selectedYear);
           const isEarlyThisYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
           const signedThisYear = p.signingDate?.startsWith(selectedYear.toString());
           if (!(hasNoYearInfo || hasYearlyData || isEarlyThisYear || signedThisYear)) return false;
@@ -363,13 +330,13 @@ const App: React.FC = () => {
           if (Math.ceil(month / 3) === q) matchesQuarter = true;
         }
         if (selectedYear !== 'all') {
-            const yearlyRecord = p.annualData?.find(d => d.year === selectedYear);
+            const yearlyRecord = p.annualData?.find((d: any) => d.year === selectedYear);
             if (yearlyRecord?.collectionDate) {
                 const month = parseInt(yearlyRecord.collectionDate.split('-')[1]);
                 if (Math.ceil(month / 3) === q) matchesQuarter = true;
             }
         } else {
-            const hasQuarterData = p.annualData?.some(d => {
+            const hasQuarterData = p.annualData?.some((d: any) => {
                 if (!d.collectionDate) return false;
                 const month = parseInt(d.collectionDate.split('-')[1]);
                 return Math.ceil(month / 3) === q;
@@ -417,43 +384,22 @@ const App: React.FC = () => {
       case '/cycle/early': return <ProjectTable title="前期项目跟进" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.EARLY} />;
       
       case '/cycle/collection': {
-          const collectionData = projects.filter(p => {
-              // Show if project is explicitly in COLLECTION stage
+          const collectionData = filteredSafeProjects.filter(p => {
               if (p.stage === ProjectStage.COLLECTION) return true;
-              
-              // Safely parse collectionPlan (handle string or array)
-              let plan = [];
-              try {
-                  if (Array.isArray(p.collectionPlan)) {
-                      plan = p.collectionPlan;
-                  } else if (typeof p.collectionPlan === 'string') {
-                      plan = JSON.parse(p.collectionPlan);
-                  }
-              } catch (e) {
-                  plan = [];
-              }
-              
-              // OR if it has ANY completed collection tasks in the selected year/quarter
+              const plan = p.collectionPlan as any[];
               const hasCompletedTask = Array.isArray(plan) && plan.some((task: any) => {
                   if (!task.completed) return false;
-                  
-                  // Match Year
                   const yearMatches = selectedYear === 'all' || task.year === selectedYear;
                   if (!yearMatches) return false;
-                  
-                  // Match Quarter
                   if (selectedQuarter !== 'all') {
                       const q = Number(selectedQuarter);
                       const taskQuarter = Math.ceil((task.month || 1) / 3);
                       return taskQuarter === q;
                   }
-                  
                   return true;
               });
-              
               return hasCompletedTask;
           });
-          
           return <ProjectTable title="年度收款计划" data={collectionData} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COLLECTION} />;
       }
 
@@ -484,7 +430,7 @@ const App: React.FC = () => {
     if (!isLoggedIn) return <Login onLogin={handleLogin} />;
     return (
       <>
-        <Watermark userName={currentUser?.name || CURRENT_USER.name} />
+        <Watermark userName={currentUser?.name || 'User'} />
         <AIChat />
         <div className="flex h-screen overflow-hidden">
           <Sidebar currentPath={currentPath} onNavigate={handleNavigate} isOpen={sidebarOpen} setIsOpen={setSidebarOpen} currentUser={currentUser} onLogout={handleLogout} onChangePassword={() => setIsPwdModalOpen(true)} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} confirmCustom={confirmCustom} />
