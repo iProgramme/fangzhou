@@ -16,4 +16,5 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const sqlite = new Database(dbPath);
+sqlite.pragma('journal_mode = WAL'); // 开启 WAL 模式，解决并发写入锁问题
 export const db = drizzle(sqlite, { schema });

@@ -319,11 +319,25 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       return item ? <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-sm font-bold ${item.bgColor} ${item.textColor} border border-transparent`}>{value}</span> : value;
   };
 
-  const getAnnualValue = (row: Project, key: 'contractAmount' | 'collectedAmount') => {
-      if (selectedYear === 'all') {
-          return row.annualData?.reduce((sum, item) => sum + (item[key] || 0), 0) || 0;
+  // Helper to safely parse JSON strings from SQLite
+  const safeParseJSON = (data: any, defaultValue: any = []) => {
+      if (Array.isArray(data)) return data;
+      if (typeof data === 'string') {
+          try {
+              return JSON.parse(data) || defaultValue;
+          } catch (e) {
+              return defaultValue;
+          }
       }
-      return row.annualData?.find(d => d.year === selectedYear)?.[key] || 0;
+      return defaultValue;
+  };
+
+  const getAnnualValue = (row: Project, key: 'contractAmount' | 'collectedAmount') => {
+      const annualData = safeParseJSON(row.annualData);
+      if (selectedYear === 'all') {
+          return annualData.reduce((sum: number, item: any) => sum + (item[key] || 0), 0) || 0;
+      }
+      return annualData.find((d: any) => d.year === selectedYear)?.[key] || 0;
   };
 
   // Helper to format team members for table display (matching form logic)
@@ -576,13 +590,23 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                         }
                         return <td key={col.key as string} className="py-2 px-4 whitespace-nowrap font-bold text-gray-700">{cell}</td>;
                     })}
-                    <td className="py-2 px-4 text-right sticky right-0 bg-card/80 backdrop-blur-sm group-hover:bg-muted/80 shadow-[-8px_0_12px_-5px_rgba(0,0,0,0.05)] transition-colors"><div className="flex justify-end gap-1"><button onClick={() => setViewProject(row)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><Eye className="h-4 w-4"/></button><button onClick={() => { 
-                        const totalCollected = (row.annualData || []).reduce((sum, item) => sum + (item.collectedAmount || 0), 0);
+                    <td className="py-2 px-4 text-right sticky right-0 bg-card/80 backdrop-blur-sm group-hover:bg-muted/80 shadow-[-8px_0_12px_-5px_rgba(0,0,0,0.05)] transition-colors"><div className="flex justify-end gap-1"><button onClick={() => {
+                        const annualData = safeParseJSON(row.annualData);
+                        const timeline = safeParseJSON(row.timeline);
+                        const nextPlan = safeParseJSON(row.nextPlan);
+                        setViewProject({...row, annualData, timeline, nextPlan});
+                    }} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><Eye className="h-4 w-4"/></button><button onClick={() => { 
+                        const annualData = safeParseJSON(row.annualData);
+                        const collectionPlan = safeParseJSON(row.collectionPlan);
+                        const timeline = safeParseJSON(row.timeline);
+                        const nextPlan = safeParseJSON(row.nextPlan);
+                        
+                        const totalCollected = annualData.reduce((sum: number, item: any) => sum + (item.collectedAmount || 0), 0);
                         setCurrentForm({...row, collectedAmount: totalCollected}); 
-                        setFormAnnualData(row.annualData||[]); 
-                        setFormCollectionPlan(row.collectionPlan||[]); 
-                        setFormTimeline(Array.isArray(row.timeline) ? row.timeline : []); 
-                        setFormNextPlan(Array.isArray(row.nextPlan) ? row.nextPlan : []); 
+                        setFormAnnualData(annualData); 
+                        setFormCollectionPlan(collectionPlan); 
+                        setFormTimeline(timeline); 
+                        setFormNextPlan(nextPlan); 
                         setModalMode('edit'); 
                         setIsModalOpen(true);
                     }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg"><Edit className="h-4 w-4"/></button><button onClick={() => confirmCustom('删除', '确定删除？', () => onDeleteProject?.(row.id), true)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="h-4 w-4"/></button></div></td>
