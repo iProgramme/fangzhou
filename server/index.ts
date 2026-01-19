@@ -301,6 +301,20 @@ ${JSON.stringify(projectContext)}
 });
 
 // Export app for Vercel
+// Serve static files from the React frontend build
+app.use(express.static(path.join(__dirname, '../dist')));
+
+// Handle SPA routing: return index.html for any unknown routes
+app.use((req, res) => {
+  // Check if the request accepts html, otherwise it might be a missing API endpoint
+  if (req.accepts('html')) {
+    res.sendFile(path.resolve(__dirname, '../dist/index.html'));
+  } else {
+    // If it's an API call that wasn't matched, return 404
+    res.status(404).json({ error: 'Not Found' });
+  }
+});
+
 export default app;
 
 // Only start server if running directly

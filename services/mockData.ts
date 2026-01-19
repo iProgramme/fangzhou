@@ -67,7 +67,7 @@ export const INITIAL_DICTIONARIES: SystemDictionary = Object.fromEntries(
 export const INITIAL_LOGS: OperationLog[] = [
     {
         id: 'log-1',
-        userId: 'u-001',
+        userId: 'admin',
         userName: '管理员(Admin)',
         action: 'LOGIN',
         targetType: 'SYSTEM',

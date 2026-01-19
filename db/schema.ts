@@ -1,8 +1,8 @@
-
-import { pgTable, text, timestamp, boolean, integer, jsonb, serial, date } from 'drizzle-orm/pg-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 // 用户表
-export const users = pgTable('users', {
+export const users = sqliteTable('users', {
   id: text('id').primaryKey(), // 使用字符串ID，与模拟数据保持一致 (如 'u-001')
   name: text('name').notNull(), // 姓名
   password: text('password').default('123'), // 默认密码 123
@@ -10,21 +10,21 @@ export const users = pgTable('users', {
   department: text('department'), // 部门
   email: text('email'), // 邮箱
   status: text('status').default('active'), // 状态
-  createdAt: timestamp('created_at').defaultNow(), // 创建时间
-  updatedAt: timestamp('updated_at').defaultNow(), // 更新时间
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`), // 创建时间
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`), // 更新时间
 });
 
 // 系统字典表
-export const systemDictionaries = pgTable('system_dictionaries', {
-  id: serial('id').primaryKey(),
+export const systemDictionaries = sqliteTable('system_dictionaries', {
+  id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
   key: text('key').notNull().unique(), // 字典键，如 '地区', '项目类别'
-  items: jsonb('items').notNull(), // 字典项数组 { label, bgColor, textColor }
-  createdAt: timestamp('created_at').defaultNow(), // 创建时间
-  updatedAt: timestamp('updated_at').defaultNow(), // 更新时间
+  items: text('items', { mode: 'json' }).notNull(), // 字典项数组 { label, bgColor, textColor }
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`), // 创建时间
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`), // 更新时间
 });
 
 // 项目表
-export const projects = pgTable('projects', {
+export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
   stage: text('stage').notNull(), // 项目阶段
   department: text('department').notNull(), // 所属部门
@@ -58,24 +58,24 @@ export const projects = pgTable('projects', {
   paymentProgress: text('payment_progress'), // 收款进度
   collectedAmount: integer('total_collected_amount'), // 已收款总额
   
-  // 年度数据 (存储为 JSONB，因为它是对象数组)
-  annualData: jsonb('annual_data').default([]), 
+  // 年度数据 (存储为 JSON)
+  annualData: text('annual_data', { mode: 'json' }).default('[]'), 
 
   // 项目时间线 (记录关键节点)
-  timeline: jsonb('timeline').default([]),
+  timeline: text('timeline', { mode: 'json' }).default('[]'),
 
   // 计划与团队
-  nextPlan: jsonb('next_plan').default([]), // 下一步计划 (Changed to JSONB array)
+  nextPlan: text('next_plan', { mode: 'json' }).default('[]'), // 下一步计划
   teamMembers: text('team_members'), // 团队成员
   
   // 新增字段
   statusLight: text('status_light').default('green'), // 项目状态灯: 'red', 'yellow', 'green', 'white'
-  collectionPlan: jsonb('collection_plan').default([]), // 收款计划 [{year, month, amount, completed}]
+  collectionPlan: text('collection_plan', { mode: 'json' }).default('[]'), // 收款计划 [{year, month, amount, completed}]
 
   // 收款计划特定字段
   collectionTarget: text('collection_target'), // 收款目标
   paymentLevel: text('payment_level'), // 收款等级
-  completionStatus: boolean('completion_status'), // 完成状态
+  completionStatus: integer('completion_status', { mode: 'boolean' }), // 完成状态
   contractLocation: text('contract_location'), // 合同位置
   progressStatus: text('progress_status'), // 进度状态
   
@@ -85,14 +85,14 @@ export const projects = pgTable('projects', {
   estimatedSignYear: text('estimated_sign_year'), // 预计签约年份
   collectionPlanYear: integer('plan_collection_2025'), // 2025计划收款
 
-  deletedAt: timestamp('deleted_at'), // 软删除时间戳
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }), // 软删除时间戳
 
-  createdAt: timestamp('created_at').defaultNow(), // 创建时间
-  updatedAt: timestamp('updated_at').defaultNow(), // 更新时间
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`), // 创建时间
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`), // 更新时间
 });
 
 // 操作日志表
-export const operationLogs = pgTable('operation_logs', {
+export const operationLogs = sqliteTable('operation_logs', {
   id: text('id').primaryKey(),
   userId: text('user_id').references(() => users.id), // 关联用户ID
   userName: text('user_name'), // 用户名快照
@@ -100,5 +100,5 @@ export const operationLogs = pgTable('operation_logs', {
   targetType: text('target_type').notNull(), // 目标类型: PROJECT, USER, SYSTEM
   targetId: text('target_id'), // 目标ID
   details: text('details'), // 详情
-  timestamp: timestamp('timestamp').defaultNow(), // 时间戳
+  timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`), // 时间戳
 });

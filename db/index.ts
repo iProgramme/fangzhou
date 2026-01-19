@@ -1,16 +1,19 @@
-
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import Database from 'better-sqlite3';
 import * as schema from './schema.js';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 
-// 加载环境变量
 dotenv.config({ path: '.env.local' });
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL 未在 .env.local 中定义');
+// 确保数据目录存在
+const dbPath = process.env.DATABASE_URL?.replace('file:', '') || 'data/local.db';
+const dbDir = path.dirname(dbPath);
+
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
 }
 
-// 禁用预取 (prefetch)，因为 "Transaction" 连接池模式不支持
-const client = postgres(process.env.DATABASE_URL, { prepare: false });
-export const db = drizzle(client, { schema });
+const sqlite = new Database(dbPath);
+export const db = drizzle(sqlite, { schema });
