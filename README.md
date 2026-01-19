@@ -33,37 +33,38 @@ git clone -b docker https://github.com/iProgramme/fangzhou.git
 cd fangzhou
 ```
 
-### 构建镜像
+### 启动脚本
+首次拉取代码后，需要给部署脚本添加执行权限：
 ```bash
-# 构建过程中如果遇到 COPY public 报错，请确保 Dockerfile 中已删除相关行
-docker build -t fangzhou-app .
+chmod +x deploy.sh
 ```
 
-### 启动容器
+### 执行部署
 ```bash
-mkdir -p /root/fangzhou-data
-mkdir -p /root/fangzhou-uploads
-
-docker run -d \
-  --name fangzhou \
-  -p 80:3001 \
-  -v /root/fangzhou-data:/app/data \
-  -v /root/fangzhou-uploads:/app/uploads \
-  --restart unless-stopped \
-  fangzhou-app
+./deploy.sh
 ```
 
-### 初始化数据库 (关键)
+### 初始化数据 (仅首次需要)
 ```bash
-# 同步表结构
-docker exec -it fangzhou npx drizzle-kit push
-# 填充初始数据
 docker exec -it fangzhou npx tsx seed.ts
 ```
 
 ---
 
-## 2. 常见部署问题 (FAQ)
+## 2. 日常更新流程 (极简版)
+
+当你修改了代码并 push 到远程仓库后，登录服务器执行以下**一条命令**即可完成更新：
+
+```bash
+cd /root/fangzhou
+./deploy.sh
+```
+
+脚本会自动执行：`git pull` -> `构建镜像` -> `重启容器` -> `数据库结构同步`。
+
+---
+
+## 3. 常见部署问题 (FAQ)
 
 1. **构建失败：`node:20-alpine` 无法拉取**
    - 解决：配置腾讯云镜像源，或将 Dockerfile 基础镜像改为 `node:20-slim`。
@@ -73,17 +74,3 @@ docker exec -it fangzhou npx tsx seed.ts
 3. **构建失败：`RUN npm run build` 卡死或报错**
    - 原因：通常是内存不足导致编译进程被杀。
    - 解决：按照步骤 0 配置 2G 的 Swap 虚拟内存。
-
----
-
-## 3. 日常更新流程
-
-1. 本地代码 `git push`
-2. 服务器执行更新脚本 (建议存为 `deploy.sh`):
-```bash
-git pull
-docker build -t fangzhou-app .
-docker stop fangzhou
-docker rm fangzhou
-# 重新运行启动命令
-```
