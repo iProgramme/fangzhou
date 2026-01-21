@@ -344,14 +344,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                         value={analytics.totalContract} 
                         target={analytics.contractTarget} 
                         color="indigo" 
-                        formula="Σ (年度数据中 [当前年份] 的合同额)" 
+                        formula="【当前值】: Σ (年度数据中 [当前年份] 的合同额)。 【年度目标】: Σ (项目总合同额) × 0.8 系数。" 
                       />
                       <CompactKPICard 
                         title="年度实收回款" 
                         value={analytics.totalCollected} 
                         target={analytics.collectionTarget} 
                         color="emerald" 
-                        formula="Σ (年度数据中 [当前年份] 的已收款额)" 
+                        formula="【当前值】: Σ (年度数据中 [当前年份] 的已收款额)。 【年度目标】: Σ (项目总合同额) × 0.6 系数。" 
                       />
                   </div>
                   {chartOrder.financial.map(key => (<ChartCard key={key} title={(chartConfigs as any)[key].t} icon={(chartConfigs as any)[key].icon} fields={(chartConfigs as any)[key].f} filters={localFilters[key]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(key,f,v)} isOpen={openFilterKey===key} onOpen={()=>setOpenFilterKey(openFilterKey===key?null:key)} onZoom={()=>handleZoom(key, (chartConfigs as any)[key].t, (chartConfigs as any)[key].f)} size={chartSizes[key]} onResize={(w:string, h:number) => onResize(key, w, h)} onDragStart={() => handleDragStart(key)} onDragOver={(e:any) => handleDragOver(e, key)} onDragEnd={handleDragEnd} isDragging={draggedKey === key} isDragOver={dragOverKey === key}>{renderChartContent(key, chartSizes[key]?.h || 300)}</ChartCard>))}

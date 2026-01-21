@@ -68,6 +68,7 @@ export const COLLECTION_COLUMNS: ColumnDef[] = [
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
     { key: 'internalCollaboration', header: '院内合作所', inputType: 'select', dictKey: '院内合作所' },
     { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
+    { key: 'totalAmount', header: '合同额', render: formatMoney, inputType: 'number' },
     { key: 'collectionTarget', header: '收款', inputType: 'text' }, // Specified as string:input
     { key: 'paymentLevel', header: '收款等级', inputType: 'select', dictKey: '收款等级' },
     { key: 'completionStatus', header: '完成情况', render: renderBoolean, inputType: 'boolean' },
