@@ -70,7 +70,6 @@ export const COLLECTION_COLUMNS: ColumnDef[] = [
     { key: 'responsiblePerson', header: '负责人', inputType: 'select', dictKey: '人员' },
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
     { key: 'internalCollaboration', header: '院内合作所', inputType: 'select', dictKey: '院内合作所' },
-    { key: 'preliminaryType', header: '前期类型', inputType: 'select', dictKey: '前期类型' },
     { key: 'threeReviewType', header: '三审类型', inputType: 'select', dictKey: '三审类型' },
     { key: 'collectionTarget', header: '收款', inputType: 'text' }, // Specified as string:input
     { key: 'paymentLevel', header: '收款等级', inputType: 'select', dictKey: '收款等级' },
@@ -93,7 +92,6 @@ export const PROGRESS_COLUMNS: ColumnDef[] = [
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
     { key: 'clientName', header: '甲方名称', inputType: 'text' },
     { key: 'internalCollaboration', header: '院内合作所', inputType: 'select', dictKey: '院内合作所' },
-    { key: 'preliminaryType', header: '前期类型', inputType: 'select', dictKey: '前期类型' },
     { key: 'contractLocation', header: '合同位置', inputType: 'select', dictKey: '合同位置' },
     { key: 'signingDate', header: '签订日期', inputType: 'date' },
     { key: 'consortium', header: '联合体单位', inputType: 'multi-select', dictKey: '联合体单位' },
@@ -128,7 +126,6 @@ export const COMPLETED_COLUMNS: ColumnDef[] = [
     { key: 'name', header: '项目(合同)名称', inputType: 'text' },
     { key: 'clientName', header: '甲方名称', inputType: 'text' },
     { key: 'internalCollaboration', header: '院内合作所', inputType: 'select', dictKey: '院内合作所' },
-    { key: 'preliminaryType', header: '前期类型', inputType: 'select', dictKey: '前期类型' },
     { key: 'contractLocation', header: '合同位置', inputType: 'select', dictKey: '合同位置' },
     { key: 'signingDate', header: '签订日期', inputType: 'date' },
     { key: 'consortium', header: '联合体单位', inputType: 'multi-select', dictKey: '联合体单位' },
