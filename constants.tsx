@@ -45,14 +45,11 @@ export const EARLY_COLUMNS: ColumnDef[] = [
     { key: 'preliminaryType', header: '前期类型', inputType: 'select', dictKey: '前期类型' },
     { key: 'remarks', header: '是否靠谱', inputType: 'select', dictKey: '前期备注' }, // Special select for Early stage
     { key: 'contractLocation', header: '合同位置', inputType: 'select', dictKey: '合同位置' },
-    { key: 'signingDate', header: '签订日期', inputType: 'date' },
     { key: 'consortium', header: '联合体单位', inputType: 'multi-select', dictKey: '联合体单位' },
     { key: 'type', header: '项目类型', inputType: 'select', dictKey: '项目类型' },
     { key: 'totalAmount', header: '合同额', render: formatMoney, inputType: 'number' },
     { key: 'instituteAmount', header: '我院合同额', render: formatMoney, inputType: 'number' },
     { key: 'deptAmount', header: '我所合同额', render: formatMoney, inputType: 'number' },
-    { key: 'paymentProgress', header: '收款进度', inputType: 'text' }, // Will be read-only in form
-    { key: 'collectedAmount', header: '已收款', render: formatMoney, inputType: 'number' },
     
     // Virtual Keys for Annual Data - handled by Table
     { key: 'annualContract', header: '当年合同额', render: formatMoney, inputType: 'number' }, 
