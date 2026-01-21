@@ -802,7 +802,19 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                                   <input type="number" disabled={p.completed} className="h-9 flex-1 bg-card border-2 border-border rounded-lg px-3 text-xs font-black disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed" value={p.amount} onChange={e => {const n=[...formCollectionPlan]; n[idx].amount=Number(e.target.value); setFormCollectionPlan(n);}} />
                                               </div>
                                           </div>
-                                          <button type="button" onClick={() => setFormCollectionPlan(formCollectionPlan.filter((_,i)=>i!==idx))} className="h-10 w-10 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-card rounded-lg transition-all border border-transparent hover:border-border shadow-sm"><Trash2 className="h-4 w-4"/></button>
+                                          <button type="button" onClick={() => {
+                                              const taskToDelete = formCollectionPlan[idx];
+                                              if (taskToDelete.completed) {
+                                                  // 如果已完成，先从年度数据中扣除
+                                                  setFormAnnualData(prev => {
+                                                      const next = prev.map(d => d.year === taskToDelete.year ? { ...d, collectedAmount: Math.max(0, (d.collectedAmount || 0) - taskToDelete.amount) } : d);
+                                                      const total = next.reduce((sum, item) => sum + (item.collectedAmount || 0), 0);
+                                                      setCurrentForm(curr => ({...curr, collectedAmount: total}));
+                                                      return next;
+                                                  });
+                                              }
+                                              setFormCollectionPlan(formCollectionPlan.filter((_,i)=>i!==idx));
+                                          }} className="h-10 w-10 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-card rounded-lg transition-all border border-transparent hover:border-border shadow-sm"><Trash2 className="h-4 w-4"/></button>
                                       </div>))}</div>
                               </div>
                           </form>
