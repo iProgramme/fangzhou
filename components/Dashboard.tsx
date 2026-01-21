@@ -20,6 +20,17 @@ interface DashboardProps {
 
 const formatWan = (val: number) => `¥${(val / 10000).toFixed(0)}w`;
 
+const safeParseJSON = (data: any) => {
+    if (!data) return [];
+    if (typeof data === 'object') return data;
+    try {
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+};
+
 const CompactKPICard = ({ title, value, target, color, formula }: any) => {
     const progress = Math.min(100, (value / (target || 1)) * 100);
     const isIndigo = color === 'indigo';
@@ -214,10 +225,17 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
 
   const getAnalytics = (customFilters?: Record<string, Record<string, string[]>>) => {
     const filtersToUse = customFilters || localFilters;
-    const yearProjects = projects.filter(p => {
+    
+    // Pre-parse annualData for all projects to ensure it's an array
+    const parsedProjects = projects.map(p => ({
+        ...p,
+        annualData: safeParseJSON(p.annualData)
+    }));
+
+    const yearProjects = parsedProjects.filter(p => {
         const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
         if (hasNoYearInfo) return true;
-        const hasAnnualData = p.annualData?.some(d => d.year === selectedYear);
+        const hasAnnualData = p.annualData?.some((d: any) => d.year === selectedYear);
         const isEarlyForYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
         const isSignedThisYear = p.signingDate?.startsWith(selectedYear.toString());
         return hasAnnualData || isEarlyForYear || isSignedThisYear;
@@ -255,7 +273,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
     console.log('projectsActive', projectsActive);
     console.log('projectsActive', projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.8);
     return {
-        totalContract: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'contractAmount'), 0),
+        totalContract: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'collectedAmount'), 0),
         totalCollected: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'collectedAmount'), 0),
         contractTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.8,
         collectionTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0) * 0.6,
@@ -344,7 +362,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                         value={analytics.totalContract} 
                         target={analytics.contractTarget} 
                         color="indigo" 
-                        formula="【当前值】: Σ (年度数据中 [当前年份] 的合同额)。 【年度目标】: Σ (项目总合同额) × 0.8 系数。" 
+                        formula="【当前值】: Σ (年度数据中 [当前年份] 的已收款额)。 【年度目标】: Σ (项目总合同额) × 0.8 系数。" 
                       />
                       <CompactKPICard 
                         title="年度实收回款" 
