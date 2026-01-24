@@ -324,7 +324,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                               innerRadius={0} 
                               outerRadius={isZoomed ? 180 : 70} 
                               paddingAngle={4} 
-                              dataKey="value" 
+                              dataKey="value"
+                              isAnimationActive={false}
                               label={({ name, value, percent, x, y, cx }) => (
                                   <text x={x} y={y} fill="#4b5563" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10} fontWeight={700}>
                                       {`${name} ${formatWan(value)} (${(percent * 100).toFixed(0)}%)`}
@@ -338,10 +339,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                   </ResponsiveContainer>
               );
           case 'contractType': case 'collectionType':
-              return <ResponsiveContainer width="100%" height={h}><BarChart data={data} layout="vertical" margin={{left: 10, right: 40}}><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={80} tick={{fontSize: 10, fontWeight: 600}} /><Tooltip formatter={(v:any)=>formatWan(v)} /><Bar dataKey="value" fill={key.includes('contract') ? '#6366f1' : '#10b981'} radius={[0, 4, 4, 0]} label={{position: 'right', fontSize: 10, fontWeight: 700}}/></BarChart></ResponsiveContainer>;
+              return <ResponsiveContainer width="100%" height={h}><BarChart data={data} layout="vertical" margin={{left: 10, right: 40}}><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={80} tick={{fontSize: 10, fontWeight: 600}} /><Tooltip formatter={(v:any)=>formatWan(v)} /><Bar dataKey="value" fill={key.includes('contract') ? '#6366f1' : '#10b981'} radius={[0, 4, 4, 0]} label={{position: 'right', fontSize: 10, fontWeight: 700}} isAnimationActive={false}/></BarChart></ResponsiveContainer>;
           case 'regional':
               const regData = data as any;
-              return <ResponsiveContainer width="100%" height={h}><BarChart data={regData.main} margin={{bottom: 20}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" tick={{fontSize: 9, fontWeight: 600}} interval={0} angle={-30} textAnchor="end" /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Legend verticalAlign="top" align="right"/><Bar dataKey="value" name="合同" fill="#6366f1" radius={[2, 2, 0, 0]} /><Bar data={regData.coll} dataKey="value" name="已收" fill="#f43f5e" radius={[2, 2, 0, 0]} /></BarChart></ResponsiveContainer>;
+              return <ResponsiveContainer width="100%" height={h}><BarChart data={regData.main} margin={{bottom: 20}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" tick={{fontSize: 9, fontWeight: 600}} interval={0} angle={-30} textAnchor="end" /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Legend verticalAlign="top" align="right"/><Bar dataKey="value" name="合同" fill="#6366f1" radius={[2, 2, 0, 0]} isAnimationActive={false} /><Bar data={regData.coll} dataKey="value" name="已收" fill="#f43f5e" radius={[2, 2, 0, 0]} isAnimationActive={false} /></BarChart></ResponsiveContainer>;
           case 'earlySource': case 'earlyType':
               return (
                   <ResponsiveContainer width="100%" height={h}>
@@ -351,7 +352,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                               cx="50%" 
                               cy="50%" 
                               outerRadius={isZoomed ? 180 : 70} 
-                              dataKey="value" 
+                              dataKey="value"
+                              isAnimationActive={false}
                               label={({ name, value, percent, x, y, cx }) => (
                                   <text x={x} y={y} fill="#4b5563" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10} fontWeight={700}>
                                       {`${name} ${value}个 (${(percent * 100).toFixed(0)}%)`}
@@ -365,9 +367,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                   </ResponsiveContainer>
               );
           case 'earlyProbability':
-              return <ResponsiveContainer width="100%" height={h}><BarChart data={data} margin={{top: 20}}><XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 700}} /><YAxis hide /><Tooltip /><Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={100} label={{position: 'top', fontSize: 11, fontWeight: 800}}/></BarChart></ResponsiveContainer>;
+              return <ResponsiveContainer width="100%" height={h}><BarChart data={data} margin={{top: 20}}><XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 700}} /><YAxis hide /><Tooltip /><Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={100} label={{position: 'top', fontSize: 11, fontWeight: 800}} isAnimationActive={false}/></BarChart></ResponsiveContainer>;
           case 'earlyYear':
-              return <ResponsiveContainer width="100%" height={h}><ComposedChart data={data} margin={{bottom: 10}}><XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 600}} /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Area type="monotone" dataKey="value" fill="#6366f1" fillOpacity={0.1} stroke="#6366f1"/><Bar dataKey="value" fill="#6366f1" barSize={60} radius={[2, 2, 0, 0]} /></ComposedChart></ResponsiveContainer>;
+              return <ResponsiveContainer width="100%" height={h}><ComposedChart data={data} margin={{bottom: 10}}><XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 600}} /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Area type="monotone" dataKey="value" fill="#6366f1" fillOpacity={0.1} stroke="#6366f1" isAnimationActive={false}/><Bar dataKey="value" fill="#6366f1" barSize={60} radius={[2, 2, 0, 0]} isAnimationActive={false}/></ComposedChart></ResponsiveContainer>;
           default: return null;
       }
   };
