@@ -7,7 +7,7 @@ import { Project, ProjectStage, AnnualData } from '../types';
 import { 
   Wallet, TrendingUp, FileText, Target, PieChart as PieIcon, BarChart3, 
   Building, Calendar, Filter, X, CheckSquare, Square, Maximize2, 
-  GripHorizontal, HelpCircle, Minimize2 
+  GripHorizontal, HelpCircle, Minimize2, Edit
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -16,6 +16,8 @@ interface DashboardProps {
     onSelectYear: (year: number) => void;
     selectedQuarter: string;
     projects: Project[];
+    dictionaries: any;
+    onUpdateDictionary: (key: string, items: any[]) => Promise<void>;
 }
 
 const formatWan = (val: number) => `¥${(val / 10000).toFixed(0)}w`;
@@ -31,10 +33,18 @@ const safeParseJSON = (data: any) => {
     }
 };
 
-const CompactKPICard = ({ title, value, target, color, formula }: any) => {
+const CompactKPICard = ({ title, value, target, manualTarget, onManualTargetChange, color, formula }: any) => {
     const progress = Math.min(100, (value / (target || 1)) * 100);
+    const manualProgress = Math.min(100, (value / (manualTarget || 1)) * 100);
     const isIndigo = color === 'indigo';
-    
+    const [isEditing, setIsEditing] = useState(false);
+    const [editValue, setEditValue] = useState(manualTarget / 10000);
+
+    // Sync local editValue when external manualTarget changes (e.g. year change or DB load)
+    useEffect(() => {
+        setEditValue(manualTarget / 10000);
+    }, [manualTarget]);
+
     return (
         <div className={`flex-1 rounded-2xl border bg-card p-6 shadow-lg border-t-8 transition-all hover:shadow-2xl relative group ${isIndigo ? 'border-t-indigo-500 bg-gradient-to-br from-indigo-50/50 to-transparent' : 'border-t-emerald-500 bg-gradient-to-br from-emerald-50/50 to-transparent'}`}>
             <div className="flex items-center justify-between mb-4">
@@ -51,25 +61,71 @@ const CompactKPICard = ({ title, value, target, color, formula }: any) => {
                 </div>
             </div>
 
-            <div className="space-y-3">
-                <div className="flex justify-between items-end">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] text-gray-400 font-bold uppercase">完成进度</span>
-                        <span className={`text-lg font-black ${progress >= 100 ? 'text-emerald-600' : isIndigo ? 'text-indigo-600' : 'text-emerald-600'}`}>
-                            {progress.toFixed(1)}%
-                        </span>
+            <div className="space-y-4">
+                {/* 系统汇总进度 */}
+                <div className="space-y-1.5">
+                    <div className="flex justify-between items-end">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">系统汇总进度</span>
+                            <span className={`text-xs font-black ${isIndigo ? 'text-indigo-600' : 'text-emerald-600'}`}>{progress.toFixed(1)}%</span>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-[9px] text-gray-400 font-bold block uppercase">系统汇总总额</span>
+                            <span className="text-xs font-bold text-gray-500">¥{(target / 10000).toFixed(0)}w</span>
+                        </div>
                     </div>
-                    <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-bold uppercase block">年度目标</span>
-                        <span className="text-sm font-bold text-gray-600">¥{(target / 10000).toFixed(0)}w</span>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden border p-0.5">
+                        <div 
+                            className={`h-full rounded-full transition-all duration-1000 ease-out ${isIndigo ? 'bg-indigo-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${progress}%` }}
+                        />
                     </div>
                 </div>
-                
-                <div className="h-3 bg-gray-100 rounded-full overflow-hidden border p-0.5">
-                    <div 
-                        className={`h-full rounded-full transition-all duration-1000 ease-out ${isIndigo ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'}`}
-                        style={{ width: `${progress}%` }}
-                    />
+
+                {/* 手动设定目标进度 */}
+                <div className="space-y-1.5 pt-1 border-t border-dashed">
+                    <div className="flex justify-between items-end">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">手动目标进度</span>
+                            <span className="text-xs font-black text-primary">{manualProgress.toFixed(1)}%</span>
+                        </div>
+                        <div className="text-right flex flex-col items-end">
+                            <span className="text-[9px] text-gray-400 font-bold block uppercase flex items-center gap-1">
+                                手动设定目标
+                                <Edit className="h-2 w-2 cursor-pointer hover:text-primary" onClick={() => setIsEditing(true)} />
+                            </span>
+                            {isEditing ? (
+                                <div className="flex items-center gap-1">
+                                    <input 
+                                        autoFocus
+                                        type="number" 
+                                        className="w-16 h-5 text-[10px] border rounded px-1 outline-none focus:border-primary"
+                                        value={editValue}
+                                        onChange={e => setEditValue(Number(e.target.value))}
+                                        onBlur={() => {
+                                            onManualTargetChange(editValue * 10000);
+                                            setIsEditing(false);
+                                        }}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') {
+                                                onManualTargetChange(editValue * 10000);
+                                                setIsEditing(false);
+                                            }
+                                        }}
+                                    />
+                                    <span className="text-[10px] font-bold">w</span>
+                                </div>
+                            ) : (
+                                <span className="text-sm font-black text-gray-800 cursor-pointer hover:text-primary" onClick={() => setIsEditing(true)}>¥{(manualTarget / 10000).toFixed(0)}w</span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="h-3 bg-primary/5 rounded-full overflow-hidden border border-primary/10 p-0.5">
+                        <div 
+                            className="h-full rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)] transition-all duration-1000 ease-out"
+                            style={{ width: `${manualProgress}%` }}
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -133,7 +189,7 @@ const ChartCard = ({ title, icon, children, fields, filters, options, labels, on
     );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, projects }) => {
+const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, projects, dictionaries, onUpdateDictionary }) => {
   const [activeTab, setActiveTab] = useState<'financial' | 'early'>('financial');
   const [openFilterKey, setOpenFilterKey] = useState<string | null>(null);
   
@@ -147,14 +203,31 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
 
   const [localFilters, setLocalFilters] = useState<Record<string, Record<string, string[]>>>(() => {
       const saved = localStorage.getItem('dashboard_v7_filters');
-      return saved ? JSON.parse(saved) : { contractSource: {}, collectionSource: {}, contractType: {}, collectionType: {}, regional: {}, earlySource: {}, earlyProbability: {}, earlyYear: {}, earlyType: {} };
+      return saved ? JSON.parse(saved) : { contractSource: {}, collectionSource: {}, contractType: {}, collectionType: {}, regional: {}, earlySource: {}, earlyProbability: {}, earlyType: {} };
   });
+
+  const [manualTargets, setManualTargets] = useState<Record<number, { contract: number, collection: number }>>({});
+
+  // Load manualTargets from dictionaries
+  useEffect(() => {
+      const targetsDict = dictionaries?.['dashboard_targets'];
+      if (targetsDict && Array.isArray(targetsDict)) {
+          const map: any = {};
+          targetsDict.forEach((item: any) => {
+              try {
+                  const data = JSON.parse(item.label);
+                  map[data.year] = { contract: data.contract, collection: data.collection };
+              } catch (e) { /* ignore error data */ }
+          });
+          setManualTargets(map);
+      }
+  }, [dictionaries]);
 
   const [chartOrder, setChartOrder] = useState<Record<string, string[]>>(() => {
       const saved = localStorage.getItem('dashboard_v7_order');
       return saved ? JSON.parse(saved) : {
           financial: ['contractSource', 'collectionSource', 'contractType', 'collectionType', 'regional'],
-          early: ['earlySource', 'earlyProbability', 'earlyYear', 'earlyType']
+          early: ['earlySource', 'earlyProbability', 'earlyType']
       };
   });
 
@@ -206,6 +279,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       const dragIdx = currentOrder.indexOf(draggedKey);
       const hoverIdx = currentOrder.indexOf(targetKey);
       
+      if (dragIdx === -1) return;
+
       currentOrder.splice(dragIdx, 1);
       currentOrder.splice(hoverIdx, 0, draggedKey);
       setChartOrder(prev => ({ ...prev, [activeTab]: currentOrder }));
@@ -226,7 +301,6 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   const getAnalytics = (customFilters?: Record<string, Record<string, string[]>>) => {
     const filtersToUse = customFilters || localFilters;
     
-    // Pre-parse annualData for all projects to ensure it's an array
     const parsedProjects = projects.map(p => ({
         ...p,
         annualData: safeParseJSON(p.annualData)
@@ -270,13 +344,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
     };
 
-    console.log('projectsActive', projectsActive);
-    console.log('projectsActive', projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0));
+    const currentManual = manualTargets[selectedYear] || { contract: 0, collection: 0 };
+
     return {
-        totalContract: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'collectedAmount'), 0),
+        totalContract: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'contractAmount'), 0),
         totalCollected: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'collectedAmount'), 0),
         contractTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
         collectionTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
+        manualContractTarget: currentManual.contract,
+        manualCollectionTarget: currentManual.collection,
         earlyTotal: earlyProjects.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
         getChartData: (key: string, isZoomed = false) => {
             const currentChartFilters = isZoomed ? zoomedFilters : filtersToUse[key];
@@ -288,26 +364,58 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                 case 'contractType': return aggregate(filtered, 'category', p => getYearlyValue(p, 'contractAmount'));
                 case 'collectionType': return aggregate(filtered, 'category', p => getYearlyValue(p, 'collectedAmount'));
                 case 'regional': return { main: aggregate(filtered, 'region', p => getYearlyValue(p, 'contractAmount')), coll: aggregate(filtered, 'region', p => getYearlyValue(p, 'collectedAmount')) };
-                case 'earlySource': return processPieData(aggregate(filtered, 'source', p => 1));
-                case 'earlyProbability': return aggregate(filtered, 'probability', p => 1);
-                case 'earlyYear': return aggregate(filtered, 'estimatedSignYear', p => p.totalAmount || 0);
-                case 'earlyType': return processPieData(aggregate(filtered, 'category', p => 1));
+                case 'earlySource': return processPieData(aggregate(filtered, 'source', p => p.totalAmount || 0));
+                case 'earlyProbability': return aggregate(filtered, 'remarks', p => p.totalAmount || 0);
+                case 'earlyType': return processPieData(aggregate(filtered, 'category', p => p.totalAmount || 0));
                 default: return [];
             }
         }
     };
   };
 
-  const analytics = useMemo(() => getAnalytics(), [selectedYear, selectedQuarter, projects, localFilters]);
+  const analytics = useMemo(() => getAnalytics(), [selectedYear, selectedQuarter, projects, localFilters, manualTargets]);
   const zoomedAnalytics = useMemo(() => zoomedChart ? getAnalytics() : null, [zoomedChart, zoomedFilters, projects]);
 
   const options = useMemo(() => {
       const getUnique = (key: keyof Project) => Array.from(new Set(projects.map(p => p[key] as string).filter(Boolean))).sort();
-      return { department: getUnique('department'), region: getUnique('region'), source: getUnique('source'), category: getUnique('category'), threeReviewType: getUnique('threeReviewType'), probability: getUnique('probability') };
+      return { department: getUnique('department'), region: getUnique('region'), source: getUnique('source'), category: getUnique('category'), threeReviewType: getUnique('threeReviewType'), probability: getUnique('probability'), remarks: getUnique('remarks') };
   }, [projects]);
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
-  const fieldLabels: Record<string, string> = { department: '部门', region: '地区', source: '来源', category: '类别', threeReviewType: '三审', probability: '可能性' };
+  const fieldLabels: Record<string, string> = { department: '部门', region: '地区', source: '来源', category: '类别', threeReviewType: '三审', probability: '可能性', remarks: '是否靠谱' };
+
+  const chartConfigs: any = {
+    contractSource: { t: '合同来源分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
+    collectionSource: { t: '收款来源分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
+    contractType: { t: '合同类别排行', f: ['department', 'region'], icon: <BarChart3 className="h-3.5 w-3.5"/> },
+    collectionType: { t: '收款类别排行', f: ['department', 'region'], icon: <BarChart3 className="h-3.5 w-3.5"/> },
+    regional: { t: '地区业务对比', f: ['department', 'category'], icon: <Building className="h-3.5 w-3.5"/> },
+    earlySource: { t: '前期来源分析', f: ['region', 'department'], icon: <PieIcon className="h-3.5 w-3.5"/> },
+    earlyProbability: { t: '是否靠谱分析', f: ['source', 'department', 'remarks'], icon: <Target className="h-3.5 w-3.5"/> },
+    earlyType: { t: '前期类型分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
+  };
+
+  const handleUpdateManualTarget = async (type: 'contract' | 'collection', value: number) => {
+      const newManualTargets = {
+          ...manualTargets,
+          [selectedYear]: {
+              ...(manualTargets[selectedYear] || { contract: 0, collection: 0 }),
+              [type]: value
+          }
+      };
+      
+      // Update local state immediately
+      setManualTargets(newManualTargets);
+
+      // Save to database
+      const dictItems = Object.entries(newManualTargets).map(([year, data]: [any, any]) => ({
+          label: JSON.stringify({ year: Number(year), ...data }),
+          bgColor: 'bg-primary/5',
+          textColor: 'text-primary'
+      }));
+
+      await onUpdateDictionary('dashboard_targets', dictItems);
+  };
 
   const renderChartContent = (key: string, height: number, isZoomed = false) => {
       const h = isZoomed ? (window.innerHeight * 0.6) : (height - 80);
@@ -343,7 +451,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
           case 'regional':
               const regData = data as any;
               return <ResponsiveContainer width="100%" height={h}><BarChart data={regData.main} margin={{bottom: 20}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" tick={{fontSize: 9, fontWeight: 600}} interval={0} angle={-30} textAnchor="end" /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Legend verticalAlign="top" align="right"/><Bar dataKey="value" name="合同" fill="#6366f1" radius={[2, 2, 0, 0]} isAnimationActive={false} /><Bar data={regData.coll} dataKey="value" name="已收" fill="#f43f5e" radius={[2, 2, 0, 0]} isAnimationActive={false} /></BarChart></ResponsiveContainer>;
-          case 'earlySource': case 'earlyType':
+          case 'earlySource': case 'earlyType': case 'earlyProbability':
               return (
                   <ResponsiveContainer width="100%" height={h}>
                       <PieChart>
@@ -356,34 +464,18 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                               isAnimationActive={false}
                               label={({ name, value, percent, x, y, cx }) => (
                                   <text x={x} y={y} fill="#4b5563" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10} fontWeight={700}>
-                                      {`${name} ${value}个 (${(percent * 100).toFixed(0)}%)`}
+                                      {`${name} ${formatWan(value)} (${(percent * 100).toFixed(0)}%)`}
                                   </text>
                               )}
                           >
                               { data.map((_:any, i:number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />) }
                           </Pie>
-                          <Tooltip />
+                          <Tooltip formatter={(v:any)=>formatWan(v)}/>
                       </PieChart>
                   </ResponsiveContainer>
               );
-          case 'earlyProbability':
-              return <ResponsiveContainer width="100%" height={h}><BarChart data={data} margin={{top: 20}}><XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 700}} /><YAxis hide /><Tooltip /><Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={100} label={{position: 'top', fontSize: 11, fontWeight: 800}} isAnimationActive={false}/></BarChart></ResponsiveContainer>;
-          case 'earlyYear':
-              return <ResponsiveContainer width="100%" height={h}><ComposedChart data={data} margin={{bottom: 10}}><XAxis dataKey="name" tick={{fontSize: 11, fontWeight: 600}} /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Area type="monotone" dataKey="value" fill="#6366f1" fillOpacity={0.1} stroke="#6366f1" isAnimationActive={false}/><Bar dataKey="value" fill="#6366f1" barSize={60} radius={[2, 2, 0, 0]} isAnimationActive={false}/></ComposedChart></ResponsiveContainer>;
           default: return null;
       }
-  };
-
-  const chartConfigs = {
-    contractSource: { t: '合同来源分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
-    collectionSource: { t: '收款来源分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
-    contractType: { t: '合同类别排行', f: ['department', 'region'], icon: <BarChart3 className="h-3.5 w-3.5"/> },
-    collectionType: { t: '收款类别排行', f: ['department', 'region'], icon: <BarChart3 className="h-3.5 w-3.5"/> },
-    regional: { t: '地区业务对比', f: ['department', 'category'], icon: <Building className="h-3.5 w-3.5"/> },
-    earlySource: { t: '前期来源分析', f: ['region', 'department'], icon: <PieIcon className="h-3.5 w-3.5"/> },
-    earlyProbability: { t: '项目可能性分布', f: ['source', 'department'], icon: <Target className="h-3.5 w-3.5"/> },
-    earlyYear: { t: '签约年份预估', f: ['department', 'region'], icon: <Calendar className="h-3.5 w-3.5"/> },
-    earlyType: { t: '前期类型分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
   };
 
   return (
@@ -405,25 +497,29 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                         title="年度合同额度" 
                         value={analytics.totalContract} 
                         target={analytics.contractTarget} 
+                        manualTarget={analytics.manualContractTarget}
+                        onManualTargetChange={(v: number) => handleUpdateManualTarget('contract', v)}
                         color="indigo" 
-                        formula="【当前值】: Σ (年度数据中 [当前年份] 的已收款额)。 【年度目标】: 项目总合同额。" 
+                        formula="【当前值】: Σ (年度数据中 [当前年份] 的合同额)。 【系统汇总总额】: 当前筛选范围内项目的总合同额汇总。" 
                       />
                       <CompactKPICard 
                         title="年度实收回款" 
                         value={analytics.totalCollected} 
                         target={analytics.collectionTarget} 
+                        manualTarget={analytics.manualCollectionTarget}
+                        onManualTargetChange={(v: number) => handleUpdateManualTarget('collection', v)}
                         color="emerald" 
-                        formula="【当前值】: Σ (年度数据中 [当前年份] 的已收款额)。 【年度目标】: 项目总合同额。" 
+                        formula="【当前值】: Σ (年度数据中 [当前年份] 的已收款额)。 【系统汇总总额】: 当前筛选范围内项目的总合同额汇总。" 
                       />
                   </div>
-                  {chartOrder.financial.map(key => (<ChartCard key={key} title={(chartConfigs as any)[key].t} icon={(chartConfigs as any)[key].icon} fields={(chartConfigs as any)[key].f} filters={localFilters[key]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(key,f,v)} isOpen={openFilterKey===key} onOpen={()=>setOpenFilterKey(openFilterKey===key?null:key)} onZoom={()=>handleZoom(key, (chartConfigs as any)[key].t, (chartConfigs as any)[key].f)} size={chartSizes[key]} onResize={(w:string, h:number) => onResize(key, w, h)} onDragStart={() => handleDragStart(key)} onDragOver={(e:any) => handleDragOver(e, key)} onDragEnd={handleDragEnd} isDragging={draggedKey === key} isDragOver={dragOverKey === key}>{renderChartContent(key, chartSizes[key]?.h || 300)}</ChartCard>))}
+                  {chartOrder.financial.filter(key => chartConfigs[key]).map(key => (<ChartCard key={key} title={chartConfigs[key].t} icon={chartConfigs[key].icon} fields={chartConfigs[key].f} filters={localFilters[key]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(key,f,v)} isOpen={openFilterKey===key} onOpen={()=>setOpenFilterKey(openFilterKey===key?null:key)} onZoom={()=>handleZoom(key, chartConfigs[key].t, chartConfigs[key].f)} size={chartSizes[key]} onResize={(w:string, h:number) => onResize(key, w, h)} onDragStart={() => handleDragStart(key)} onDragOver={(e:any) => handleDragOver(e, key)} onDragEnd={handleDragEnd} isDragging={draggedKey === key} isDragOver={dragOverKey === key}>{renderChartContent(key, chartSizes[key]?.h || 300)}</ChartCard>))}
               </>
             ) : (
               <>
                   <div className="w-full rounded-xl border bg-card p-5 shadow-sm bg-gradient-to-r from-primary/5 to-transparent flex items-center justify-between border-l-4 border-l-primary mb-2">
                       <div className="flex items-center gap-4"><div className="p-2.5 bg-primary/10 rounded-lg text-primary shadow-inner"><TrendingUp className="h-5 w-5"/></div><div><p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">前期预估总额</p><h2 className="text-2xl font-black text-primary tracking-tighter">{formatWan(analytics.earlyTotal)}</h2></div></div>
                   </div>
-                  {chartOrder.early.map(key => (<ChartCard key={key} title={(chartConfigs as any)[key].t} icon={(chartConfigs as any)[key].icon} fields={(chartConfigs as any)[key].f} filters={localFilters[key]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(key,f,v)} isOpen={openFilterKey===key} onOpen={()=>setOpenFilterKey(openFilterKey===key?null:key)} onZoom={()=>handleZoom(key, (chartConfigs as any)[key].t, (chartConfigs as any)[key].f)} size={chartSizes[key]} onResize={(w:string, h:number) => onResize(key, w, h)} onDragStart={() => handleDragStart(key)} onDragOver={(e:any) => handleDragOver(e, key)} onDragEnd={handleDragEnd} isDragging={draggedKey === key} isDragOver={dragOverKey === key}>{renderChartContent(key, chartSizes[key]?.h || 300)}</ChartCard>))}
+                  {chartOrder.early.filter(key => chartConfigs[key]).map(key => (<ChartCard key={key} title={chartConfigs[key].t} icon={chartConfigs[key].icon} fields={chartConfigs[key].f} filters={localFilters[key]} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(key,f,v)} isOpen={openFilterKey===key} onOpen={()=>setOpenFilterKey(openFilterKey===key?null:key)} onZoom={()=>handleZoom(key, chartConfigs[key].t, chartConfigs[key].f)} size={chartSizes[key]} onResize={(w:string, h:number) => onResize(key, w, h)} onDragStart={() => handleDragStart(key)} onDragOver={(e:any) => handleDragOver(e, key)} onDragEnd={handleDragEnd} isDragging={draggedKey === key} isDragOver={dragOverKey === key}>{renderChartContent(key, chartSizes[key]?.h || 300)}</ChartCard>))}
               </>
             )}
         </div>
