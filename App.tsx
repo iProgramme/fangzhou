@@ -384,21 +384,26 @@ const App: React.FC = () => {
       case '/cycle/early': return <ProjectTable title="前期项目跟进" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.EARLY} />;
       
       case '/cycle/collection': {
-          const collectionData = filteredSafeProjects.filter(p => {
-              if (p.stage === ProjectStage.COLLECTION) return true;
-              const plan = p.collectionPlan as any[];
-              const hasCompletedTask = Array.isArray(plan) && plan.some((task: any) => {
-                  if (!task.completed) return false;
-                  const yearMatches = selectedYear === 'all' || task.year === selectedYear;
-                  if (!yearMatches) return false;
-                  if (selectedQuarter !== 'all') {
-                      const q = Number(selectedQuarter);
-                      const taskQuarter = Math.ceil((task.month || 1) / 3);
-                      return taskQuarter === q;
-                  }
-                  return true;
-              });
-              return hasCompletedTask;
+          const collectionData = safeProjects.filter(p => {
+              if (!Array.isArray(p.annualData) || p.annualData.length === 0) return false;
+
+              if (selectedYear !== 'all') {
+                  const hasYear = p.annualData.some((d: any) => d.year === selectedYear);
+                  if (!hasYear) return false;
+              }
+
+              if (selectedQuarter !== 'all') {
+                  const q = Number(selectedQuarter);
+                  const hasQuarterData = p.annualData.some((d: any) => {
+                      if (selectedYear !== 'all' && d.year !== selectedYear) return false;
+                      if (!d.collectionDate) return false;
+                      const month = parseInt(d.collectionDate.split('-')[1]);
+                      return Math.ceil(month / 3) === q;
+                  });
+                  if (!hasQuarterData) return false;
+              }
+
+              return true;
           });
           return <ProjectTable title="年度收款计划" data={collectionData} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COLLECTION} />;
       }
