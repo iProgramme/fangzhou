@@ -307,12 +307,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
     }));
 
     const yearProjects = parsedProjects.filter(p => {
-        const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
+        const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear && !p.collectionPlan?.length;
         if (hasNoYearInfo) return true;
         const hasAnnualData = p.annualData?.some((d: any) => d.year === selectedYear);
+        const hasCollectionPlan = p.collectionPlan?.some(cp => cp.year === selectedYear);
         const isEarlyForYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
         const isSignedThisYear = p.signingDate?.startsWith(selectedYear.toString());
-        return hasAnnualData || isEarlyForYear || isSignedThisYear;
+        return hasAnnualData || hasCollectionPlan || isEarlyForYear || isSignedThisYear;
     });
     const filterByQuarter = (data: Project[]) => {
         if (selectedQuarter === 'all') return data;
@@ -347,8 +348,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
     const currentManual = manualTargets[selectedYear] || { contract: 0, collection: 0 };
 
     return {
-        totalContract: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'contractAmount'), 0),
+        totalContract: projectsActive.reduce((acc, p) => {
+            const isSignedThisYear = p.signingDate?.startsWith(selectedYear.toString());
+            return isSignedThisYear ? acc + (p.deptAmount || 0) : acc;
+        }, 0),
         totalCollected: projectsActive.reduce((acc, p) => acc + getYearlyValue(p, 'collectedAmount'), 0),
+        totalPlannedCollection: projectsActive.reduce((acc, p) => {
+            const planForYear = p.collectionPlan?.filter(cp => cp.year === selectedYear) || [];
+            return acc + planForYear.reduce((sum, cp) => sum + (cp.amount || 0), 0);
+        }, 0),
         contractTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
         collectionTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
         manualContractTarget: currentManual.contract,
@@ -359,11 +367,14 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
             const dataPool = key.startsWith('early') ? earlyProjects : projectsActive;
             const filtered = applyMultiFilter(dataPool, currentChartFilters);
             switch(key) {
-                case 'contractSource': return processPieData(aggregate(filtered, 'source', p => getYearlyValue(p, 'contractAmount')));
+                case 'contractSource': return processPieData(aggregate(filtered, 'source', p => p.signingDate?.startsWith(selectedYear.toString()) ? (p.deptAmount || 0) : 0));
                 case 'collectionSource': return processPieData(aggregate(filtered, 'source', p => getYearlyValue(p, 'collectedAmount')));
-                case 'contractType': return aggregate(filtered, 'category', p => getYearlyValue(p, 'contractAmount'));
+                case 'contractType': return aggregate(filtered, 'category', p => p.signingDate?.startsWith(selectedYear.toString()) ? (p.deptAmount || 0) : 0);
                 case 'collectionType': return aggregate(filtered, 'category', p => getYearlyValue(p, 'collectedAmount'));
-                case 'regional': return { main: aggregate(filtered, 'region', p => getYearlyValue(p, 'contractAmount')), coll: aggregate(filtered, 'region', p => getYearlyValue(p, 'collectedAmount')) };
+                case 'regional': return { 
+                    main: aggregate(filtered, 'region', p => p.signingDate?.startsWith(selectedYear.toString()) ? (p.deptAmount || 0) : 0), 
+                    coll: aggregate(filtered, 'region', p => getYearlyValue(p, 'collectedAmount')) 
+                };
                 case 'earlySource': return processPieData(aggregate(filtered, 'source', p => p.totalAmount || 0));
                 case 'earlyProbability': return aggregate(filtered, 'remarks', p => p.totalAmount || 0);
                 case 'earlyType': return processPieData(aggregate(filtered, 'category', p => p.totalAmount || 0));
@@ -492,7 +503,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         <div className="flex flex-wrap gap-4 transition-all">
             {activeTab === 'financial' ? (
               <>
-                  <div className="w-full flex flex-col md:flex-row gap-6 mb-4">
+                  <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                       <CompactKPICard 
                         title="年度合同额度" 
                         value={analytics.totalContract} 
@@ -500,7 +511,16 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                         manualTarget={analytics.manualContractTarget}
                         onManualTargetChange={(v: number) => handleUpdateManualTarget('contract', v)}
                         color="indigo" 
-                        formula="【当前值】: Σ (年度数据中 [当前年份] 的合同额)。 【系统汇总总额】: 当前筛选范围内项目的总合同额汇总。" 
+                        formula="【当前值】: Σ (已填写签订日期且年份匹配项目的 [我所合同额])。 【系统汇总总额】: 当前筛选范围内项目的总合同额汇总。" 
+                      />
+                      <CompactKPICard 
+                        title="年度计划收款" 
+                        value={analytics.totalPlannedCollection} 
+                        target={analytics.collectionTarget} 
+                        manualTarget={0}
+                        onManualTargetChange={() => {}}
+                        color="amber" 
+                        formula="【当前值】: Σ (所有项目的 [收款计划] 中对应年份的金额之和)。" 
                       />
                       <CompactKPICard 
                         title="年度实收回款" 
