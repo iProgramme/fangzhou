@@ -459,7 +459,7 @@ const App: React.FC = () => {
                                       const val = e.target.value;
                                       setSelectedYear(val === 'all' ? 'all' : Number(val));
                                   }} className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer">
-                                      {/* <option value="all">全部年份</option> */}
+                                      <option value="all">全部年份</option>
                                       {availableYears.map(year => (<option key={year} value={year}>{year}</option>))}
                                   </select>
                               </div>

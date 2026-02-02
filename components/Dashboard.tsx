@@ -63,7 +63,7 @@ const CompactKPICard = ({ title, value, target, manualTarget, onManualTargetChan
 
             <div className="space-y-4">
                 {/* 系统汇总进度 */}
-                <div className="space-y-1.5">
+                {/* <div className="space-y-1.5">
                     <div className="flex justify-between items-end">
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] text-gray-400 font-bold uppercase">系统汇总进度</span>
@@ -80,7 +80,7 @@ const CompactKPICard = ({ title, value, target, manualTarget, onManualTargetChan
                             style={{ width: `${progress}%` }}
                         />
                     </div>
-                </div>
+                </div> */}
 
                 {/* 手动设定目标进度 */}
                 <div className="space-y-1.5 pt-1 border-t border-dashed">
