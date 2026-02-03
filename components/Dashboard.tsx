@@ -455,14 +455,19 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                               cy="50%" 
                               innerRadius={0} 
                               outerRadius={isZoomed ? 180 : 70} 
-                              paddingAngle={4} 
+                              paddingAngle={2} 
+                              minAngle={15}
                               dataKey="value"
                               isAnimationActive={false}
-                              label={({ name, value, percent, x, y, cx }) => (
-                                  <text x={x} y={y} fill="#4b5563" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10} fontWeight={700}>
-                                      {`${name} ${formatWan(value)} (${(percent * 100).toFixed(0)}%)`}
-                                  </text>
-                              )}
+                              labelLine={true}
+                              label={({ name, value, percent, x, y, cx }) => {
+                                  if (percent < 0.01) return null; // 过滤占比小于1%的标签
+                                  return (
+                                      <text x={x} y={y} fill="#4b5563" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10} fontWeight={700}>
+                                          {`${name} ${formatWan(value)} (${(percent * 100).toFixed(0)}%)`}
+                                      </text>
+                                  );
+                              }}
                           >
                               { (data as any).map((_:any, i:number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />) }
                           </Pie>
