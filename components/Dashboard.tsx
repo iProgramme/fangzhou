@@ -398,9 +398,9 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   const chartConfigs: any = {
     contractSource: { t: '合同来源分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
     collectionSource: { t: '收款来源分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
-    contractType: { t: '合同类别排行', f: ['department', 'region'], icon: <BarChart3 className="h-3.5 w-3.5"/> },
-    collectionType: { t: '收款类别排行', f: ['department', 'region'], icon: <BarChart3 className="h-3.5 w-3.5"/> },
-    regional: { t: '地区业务对比', f: ['department', 'category'], icon: <Building className="h-3.5 w-3.5"/> },
+    contractType: { t: '合同类别分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
+    collectionType: { t: '收款类别分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
+    regional: { t: '地区业务分布', f: ['department', 'category'], icon: <PieIcon className="h-3.5 w-3.5"/> },
     earlySource: { t: '前期来源分析', f: ['region', 'department'], icon: <PieIcon className="h-3.5 w-3.5"/> },
     earlyProbability: { t: '是否靠谱分析', f: ['source', 'department', 'remarks'], icon: <Target className="h-3.5 w-3.5"/> },
     earlyType: { t: '前期类型分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
@@ -430,14 +430,27 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
 
   const renderChartContent = (key: string, height: number, isZoomed = false) => {
       const h = isZoomed ? (window.innerHeight * 0.6) : (height - 80);
-      const data = isZoomed ? zoomedAnalytics!.getChartData(key, true) : analytics.getChartData(key);
+      let data = isZoomed ? zoomedAnalytics!.getChartData(key, true) : analytics.getChartData(key);
+      
+      // Special handling for regional data which returns { main, coll }
+      if (key === 'regional') {
+          data = (data as any).main;
+      }
+
       switch(key) {
-          case 'contractSource': case 'collectionSource':
+          case 'contractSource': 
+          case 'collectionSource':
+          case 'contractType':
+          case 'collectionType':
+          case 'regional':
+          case 'earlySource': 
+          case 'earlyType': 
+          case 'earlyProbability':
               return (
                   <ResponsiveContainer width="100%" height={h}>
                       <PieChart>
                           <Pie 
-                              data={data} 
+                              data={processPieData(data as any)} 
                               cx="50%" 
                               cy="50%" 
                               innerRadius={0} 
@@ -451,35 +464,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                                   </text>
                               )}
                           >
-                              { data.map((_:any, i:number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />) }
-                          </Pie>
-                          <Tooltip formatter={(v:any)=>formatWan(v)}/>
-                      </PieChart>
-                  </ResponsiveContainer>
-              );
-          case 'contractType': case 'collectionType':
-              return <ResponsiveContainer width="100%" height={h}><BarChart data={data} layout="vertical" margin={{left: 10, right: 40}}><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={80} tick={{fontSize: 10, fontWeight: 600}} /><Tooltip formatter={(v:any)=>formatWan(v)} /><Bar dataKey="value" fill={key.includes('contract') ? '#6366f1' : '#10b981'} radius={[0, 4, 4, 0]} label={{position: 'right', fontSize: 10, fontWeight: 700}} isAnimationActive={false}/></BarChart></ResponsiveContainer>;
-          case 'regional':
-              const regData = data as any;
-              return <ResponsiveContainer width="100%" height={h}><BarChart data={regData.main} margin={{bottom: 20}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" tick={{fontSize: 9, fontWeight: 600}} interval={0} angle={-30} textAnchor="end" /><YAxis tickFormatter={(v)=>`${v/10000}w`} tick={{fontSize: 9}}/><Tooltip formatter={(v:any)=>formatWan(v)}/><Legend verticalAlign="top" align="right"/><Bar dataKey="value" name="合同" fill="#6366f1" radius={[2, 2, 0, 0]} isAnimationActive={false} /><Bar data={regData.coll} dataKey="value" name="已收" fill="#f43f5e" radius={[2, 2, 0, 0]} isAnimationActive={false} /></BarChart></ResponsiveContainer>;
-          case 'earlySource': case 'earlyType': case 'earlyProbability':
-              return (
-                  <ResponsiveContainer width="100%" height={h}>
-                      <PieChart>
-                          <Pie 
-                              data={data} 
-                              cx="50%" 
-                              cy="50%" 
-                              outerRadius={isZoomed ? 180 : 70} 
-                              dataKey="value"
-                              isAnimationActive={false}
-                              label={({ name, value, percent, x, y, cx }) => (
-                                  <text x={x} y={y} fill="#4b5563" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={10} fontWeight={700}>
-                                      {`${name} ${formatWan(value)} (${(percent * 100).toFixed(0)}%)`}
-                                  </text>
-                              )}
-                          >
-                              { data.map((_:any, i:number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />) }
+                              { (data as any).map((_:any, i:number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />) }
                           </Pie>
                           <Tooltip formatter={(v:any)=>formatWan(v)}/>
                       </PieChart>
