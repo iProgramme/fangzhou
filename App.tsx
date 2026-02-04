@@ -316,11 +316,12 @@ const App: React.FC = () => {
 
     const filteredSafeProjects = safeProjects.filter(p => {
       if (selectedYear !== 'all') {
-          const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear;
+          const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear && !p.collectionPlan?.length;
           const hasYearlyData = p.annualData?.some((d: any) => d.year === selectedYear);
+          const hasCollectionPlan = p.collectionPlan?.some((d: any) => d.year === selectedYear);
           const isEarlyThisYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
           const signedThisYear = p.signingDate?.startsWith(selectedYear.toString());
-          if (!(hasNoYearInfo || hasYearlyData || isEarlyThisYear || signedThisYear)) return false;
+          if (!(hasNoYearInfo || hasYearlyData || hasCollectionPlan || isEarlyThisYear || signedThisYear)) return false;
       }
       if (selectedQuarter !== 'all') {
         const q = Number(selectedQuarter);
@@ -329,6 +330,8 @@ const App: React.FC = () => {
           const month = parseInt(p.signingDate.split('-')[1]);
           if (Math.ceil(month / 3) === q) matchesQuarter = true;
         }
+        
+        // 检查实际收款记录
         if (selectedYear !== 'all') {
             const yearlyRecord = p.annualData?.find((d: any) => d.year === selectedYear);
             if (yearlyRecord?.collectionDate) {
@@ -343,6 +346,14 @@ const App: React.FC = () => {
             });
             if (hasQuarterData) matchesQuarter = true;
         }
+
+        // 检查计划收款任务
+        const planMatches = p.collectionPlan?.some((d: any) => {
+            if (selectedYear !== 'all' && d.year !== selectedYear) return false;
+            return Math.ceil(d.month / 3) === q;
+        });
+        if (planMatches) matchesQuarter = true;
+
         if (!matchesQuarter) return false;
       }
       return true;
@@ -385,22 +396,30 @@ const App: React.FC = () => {
       
       case '/cycle/collection': {
           const collectionData = safeProjects.filter(p => {
-              if (!Array.isArray(p.annualData) || p.annualData.length === 0) return false;
+              const hasAnnualData = Array.isArray(p.annualData) && p.annualData.length > 0;
+              const hasCollectionPlan = Array.isArray(p.collectionPlan) && p.collectionPlan.length > 0;
+              
+              if (!hasAnnualData && !hasCollectionPlan) return false;
 
               if (selectedYear !== 'all') {
-                  const hasYear = p.annualData.some((d: any) => d.year === selectedYear);
-                  if (!hasYear) return false;
+                  const hasYearInActual = hasAnnualData && p.annualData.some((d: any) => d.year === selectedYear);
+                  const hasYearInPlan = hasCollectionPlan && p.collectionPlan.some((d: any) => d.year === selectedYear);
+                  if (!hasYearInActual && !hasYearInPlan) return false;
               }
 
               if (selectedQuarter !== 'all') {
                   const q = Number(selectedQuarter);
-                  const hasQuarterData = p.annualData.some((d: any) => {
+                  const hasQuarterInActual = hasAnnualData && p.annualData.some((d: any) => {
                       if (selectedYear !== 'all' && d.year !== selectedYear) return false;
                       if (!d.collectionDate) return false;
                       const month = parseInt(d.collectionDate.split('-')[1]);
                       return Math.ceil(month / 3) === q;
                   });
-                  if (!hasQuarterData) return false;
+                  const hasQuarterInPlan = hasCollectionPlan && p.collectionPlan.some((d: any) => {
+                      if (selectedYear !== 'all' && d.year !== selectedYear) return false;
+                      return Math.ceil(d.month / 3) === q;
+                  });
+                  if (!hasQuarterInActual && !hasQuarterInPlan) return false;
               }
 
               return true;
