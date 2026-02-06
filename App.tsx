@@ -396,30 +396,23 @@ const App: React.FC = () => {
       
       case '/cycle/collection': {
           const collectionData = safeProjects.filter(p => {
-              const hasAnnualData = Array.isArray(p.annualData) && p.annualData.length > 0;
               const hasCollectionPlan = Array.isArray(p.collectionPlan) && p.collectionPlan.length > 0;
               
-              if (!hasAnnualData && !hasCollectionPlan) return false;
+              // 只判断有没有收款计划任务 (不看年度汇总数据)
+              if (!hasCollectionPlan) return false;
 
               if (selectedYear !== 'all') {
-                  const hasYearInActual = hasAnnualData && p.annualData.some((d: any) => d.year === selectedYear);
-                  const hasYearInPlan = hasCollectionPlan && p.collectionPlan.some((d: any) => d.year === selectedYear);
-                  if (!hasYearInActual && !hasYearInPlan) return false;
+                  const hasYearInPlan = p.collectionPlan.some((d: any) => d.year === selectedYear);
+                  if (!hasYearInPlan) return false;
               }
 
               if (selectedQuarter !== 'all') {
                   const q = Number(selectedQuarter);
-                  const hasQuarterInActual = hasAnnualData && p.annualData.some((d: any) => {
-                      if (selectedYear !== 'all' && d.year !== selectedYear) return false;
-                      if (!d.collectionDate) return false;
-                      const month = parseInt(d.collectionDate.split('-')[1]);
-                      return Math.ceil(month / 3) === q;
-                  });
-                  const hasQuarterInPlan = hasCollectionPlan && p.collectionPlan.some((d: any) => {
+                  const hasQuarterInPlan = p.collectionPlan.some((d: any) => {
                       if (selectedYear !== 'all' && d.year !== selectedYear) return false;
                       return Math.ceil(d.month / 3) === q;
                   });
-                  if (!hasQuarterInActual && !hasQuarterInPlan) return false;
+                  if (!hasQuarterInPlan) return false;
               }
 
               return true;

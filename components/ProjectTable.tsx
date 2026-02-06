@@ -4,7 +4,7 @@ import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, Chevro
 import { nanoid } from 'nanoid';
 
 export interface ColumnDef {
-  key: keyof Project | 'actions' | 'annualContract' | 'annualCollection' | 'statusLight';
+  key: keyof Project | 'actions' | 'annualContract' | 'annualCollection' | 'plannedAmount' | 'statusLight';
   header: string;
   render?: (value: any, row: Project) => React.ReactNode;
   inputType?: 'text' | 'number' | 'select' | 'date' | 'textarea' | 'boolean' | 'multi-select';
@@ -235,7 +235,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   const [formNextPlan, setFormNextPlan] = useState<TimelineEvent[]>([]);
   const [viewProject, setViewProject] = useState<Project | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
@@ -338,6 +338,14 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
           return annualData.reduce((sum: number, item: any) => sum + (item[key] || 0), 0) || 0;
       }
       return annualData.find((d: any) => d.year === selectedYear)?.[key] || 0;
+  };
+
+  const getPlannedValue = (row: Project) => {
+      const plan = safeParseJSON(row.collectionPlan);
+      if (selectedYear === 'all') {
+          return plan.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0) || 0;
+      }
+      return plan.filter((d: any) => d.year === selectedYear).reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0) || 0;
   };
 
   // Helper to format team members for table display (matching form logic)
@@ -577,6 +585,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                         let cell: React.ReactNode;
                         if (col.key === 'annualContract') cell = formatMoney(getAnnualValue(row, 'contractAmount'));
                         else if (col.key === 'annualCollection') cell = formatMoney(getAnnualValue(row, 'collectedAmount'));
+                        else if (col.key === 'plannedAmount') cell = formatMoney(getPlannedValue(row));
                         else if (col.key === 'paymentProgress') cell = renderProgressBar(row[col.key], row);
                         else if (col.render) cell = col.render(row[col.key as keyof Project], row);
                         else if (col.dictKey) cell = renderDictCell(row[col.key as keyof Project] as string, col.dictKey);
