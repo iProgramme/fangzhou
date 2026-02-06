@@ -10,6 +10,16 @@ import {
   GripHorizontal, HelpCircle, Minimize2, Edit, List, ArrowRight
 } from 'lucide-react';
 
+/**
+ * Dashboard 组件说明：
+ * 1. 核心看板：分为“财务经营”、“年度收款计划”、“前期跟进”三个维度。
+ * 2. 数据穿透：所有指标卡和图表均支持点击右上角图标查看底层项目明细。
+ * 3. 统计口径：
+ *    - 财务经营：基于合同签订日期和实际已收款数据。
+ *    - 年度收款计划：基于项目中设置的“未来收款计划任务”金额。
+ *    - 前期跟进：基于处于“前期项目”阶段的项目估算金额。
+ */
+
 interface DashboardProps {
     selectedYear: number | 'all';
     availableYears: number[];
@@ -22,6 +32,7 @@ interface DashboardProps {
 
 const formatWan = (val: number) => `¥${(val / 10000).toFixed(0)}w`;
 
+// 安全解析 JSON
 const safeParseJSON = (data: any) => {
     if (!data) return [];
     if (typeof data === 'object') return data;
@@ -33,6 +44,10 @@ const safeParseJSON = (data: any) => {
     }
 };
 
+/**
+ * 紧凑型 KPI 指标卡
+ * 展示核心数值、进度条以及手动设定的目标
+ */
 const CompactKPICard = ({ title, value, target, manualTarget, onManualTargetChange, color, formula, onViewData }: any) => {
     const progress = Math.min(100, (value / (target || 1)) * 100);
     const manualProgress = Math.min(100, (value / (manualTarget || 1)) * 100);
@@ -58,17 +73,22 @@ const CompactKPICard = ({ title, value, target, manualTarget, onManualTargetChan
                         </h3>
                     </div>
                 </div>
-                <div className={`p-3 rounded-xl ${isIndigo ? 'bg-indigo-100 text-indigo-600' : isEmerald ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                    {isIndigo ? <FileText className="h-6 w-6" /> : <Wallet className="h-6 w-6" />}
-                </div>
+                <button 
+                    onClick={onViewData}
+                    className={`p-3 rounded-xl transition-all shadow-inner hover:scale-110 active:scale-95 ${isIndigo ? 'bg-indigo-100 text-indigo-600' : isEmerald ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}
+                    title="点击查看数据明细"
+                >
+                    <List className="h-6 w-6" />
+                </button>
             </div>
 
             <div className="space-y-4">
+                {/* 手动设定目标及进度条 */}
                 <div className="space-y-1.5 pt-1 border-t border-dashed">
                     <div className="flex justify-between items-end">
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] text-gray-400 font-bold uppercase">手动目标进度</span>
-                            <span className="text-xs font-black text-primary">{manualProgress.toFixed(1)}%</span>
+                            <span className={`text-xs font-black ${isIndigo ? 'text-indigo-600' : isEmerald ? 'text-emerald-600' : 'text-amber-600'}`}>{manualProgress.toFixed(1)}%</span>
                         </div>
                         <div className="text-right flex flex-col items-end">
                             <span className="text-[9px] text-gray-400 font-bold block uppercase flex items-center gap-1">
@@ -76,7 +96,7 @@ const CompactKPICard = ({ title, value, target, manualTarget, onManualTargetChan
                                 <Edit className="h-2 w-2 cursor-pointer hover:text-primary" onClick={() => setIsEditing(true)} />
                             </span>
                             {isEditing ? (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 animate-in zoom-in-95">
                                     <input 
                                         autoFocus
                                         type="number" 
@@ -97,25 +117,22 @@ const CompactKPICard = ({ title, value, target, manualTarget, onManualTargetChan
                                     <span className="text-[10px] font-bold">w</span>
                                 </div>
                             ) : (
-                                <span className="text-sm font-black text-gray-800 cursor-pointer hover:text-primary" onClick={() => setIsEditing(true)}>¥{(manualTarget / 10000).toFixed(0)}w</span>
+                                <span className="text-sm font-black text-gray-800 cursor-pointer hover:text-primary transition-colors" onClick={() => setIsEditing(true)}>¥{(manualTarget / 10000).toFixed(0)}w</span>
                             )}
                         </div>
                     </div>
                     <div className="h-3 bg-primary/5 rounded-full overflow-hidden border border-primary/10 p-0.5">
                         <div 
-                            className="h-full rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary-rgb),0.4)] transition-all duration-1000 ease-out"
+                            className={`h-full rounded-full transition-all duration-1000 ease-out shadow-sm ${isIndigo ? 'bg-indigo-500' : isEmerald ? 'bg-emerald-500' : 'bg-amber-500'}`}
                             style={{ width: `${manualProgress}%` }}
                         />
                     </div>
                 </div>
             </div>
 
-            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                 <button onClick={onViewData} className="p-1.5 bg-white/20 hover:bg-white/40 rounded-lg text-gray-600 hover:text-primary backdrop-blur-sm transition-all shadow-sm">
-                    <List className="h-4 w-4" />
-                </button>
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-40 transition-opacity">
                 <div className="relative group/tooltip">
-                    <HelpCircle className="h-4 w-4 text-gray-300 hover:text-primary cursor-help" />
+                    <HelpCircle className="h-3 w-3 cursor-help" />
                     <div className="absolute bottom-full right-0 mb-2 w-48 p-3 bg-gray-900 text-white text-[10px] rounded-xl opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50 shadow-2xl border border-white/10 leading-relaxed font-bold">
                         <div className="text-primary mb-1 uppercase tracking-tighter">[计算逻辑]</div>
                         {formula}
@@ -126,10 +143,15 @@ const CompactKPICard = ({ title, value, target, manualTarget, onManualTargetChan
     );
 };
 
+/**
+ * 图表卡片组件
+ * 封装了标题栏、工具栏（明细、缩放、过滤）以及拖拽排序逻辑
+ */
 const ChartCard = ({ title, icon, children, fields, filters, options, labels, onToggle, isOpen, onOpen, onZoom, onViewData, size, onResize, onDragStart, onDragOver, onDragEnd, isDragging, isDragOver }: any) => {
     const activeCount = Object.values(filters || {}).flat().length;
     const cardRef = useRef<HTMLDivElement>(null);
     const [isResizing, setIsResizing] = useState(false);
+    
     const startResize = (e: React.MouseEvent) => {
         e.preventDefault(); setIsResizing(true);
         const startX = e.pageX, startY = e.pageY, startW = cardRef.current?.offsetWidth || 0, startH = cardRef.current?.offsetHeight || 0;
@@ -137,6 +159,7 @@ const ChartCard = ({ title, icon, children, fields, filters, options, labels, on
         const onMouseUp = () => { setIsResizing(false); document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
         document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
     };
+
     return (
         <div draggable onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} className={`rounded-xl border bg-card shadow-sm flex flex-col relative group transition-all duration-300 ${isDragging ? 'opacity-20 scale-95 border-dashed border-primary shadow-none' : 'opacity-100'} ${isDragOver ? 'ring-2 ring-primary ring-offset-4' : ''} ${!isDragging && !isResizing ? 'hover:shadow-xl hover:-translate-y-1' : ''} ${isOpen ? 'z-[50]' : 'z-10'}`} ref={cardRef} style={{ width: size?.w || 'calc(33.333% - 11px)', height: size?.h || 300, minWidth: '300px', minHeight: '250px' }}>
             <div className="p-3 pb-2 flex items-center justify-between border-b bg-muted/5 shrink-0 cursor-grab active:cursor-grabbing group/header">
@@ -151,6 +174,7 @@ const ChartCard = ({ title, icon, children, fields, filters, options, labels, on
                     <button onClick={onOpen} className={`p-1.5 rounded-md border transition-all ${activeCount > 0 ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-gray-400 border-gray-200 hover:text-primary'}`}><Filter className="h-3.5 w-3.5" /></button>
                 </div>
             </div>
+            {/* 过滤器弹出面板 */}
             {isOpen && (
                 <div className="absolute top-12 right-2 left-2 z-[50] bg-white border rounded-xl shadow-2xl p-4 space-y-4 animate-in zoom-in-95 ring-1 ring-black/5">
                     <div className="flex justify-between items-center border-b pb-2"><span className="text-[10px] font-black text-primary uppercase">看板配置</span><button onClick={onOpen}><X className="h-3.5 w-3.5 text-gray-400"/></button></div>
@@ -184,11 +208,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
+  // 从 LocalStorage 加载图表尺寸
   const [chartSizes, setChartSizes] = useState<Record<string, { w: string, h: number }>>(() => {
       const saved = localStorage.getItem('dashboard_v7_sizes');
       return saved ? JSON.parse(saved) : {};
   });
 
+  // 从 LocalStorage 加载过滤器配置，并合并默认值以防新图表键缺失
   const [localFilters, setLocalFilters] = useState<Record<string, Record<string, string[]>>>(() => {
       const saved = localStorage.getItem('dashboard_v7_filters');
       const defaults = { contractSource: {}, collectionSource: {}, contractType: {}, collectionType: {}, regionalContract: {}, regionalCollection: {}, collectionLevel: {}, collectionDept: {}, earlySource: {}, earlyProbability: {}, earlyType: {} };
@@ -201,6 +227,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       return defaults;
   });
 
+  // 加载手动设定的目标金额
   const [manualTargets, setManualTargets] = useState<Record<string, { contract: number, collection: number }>>({});
 
   useEffect(() => {
@@ -217,6 +244,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       }
   }, [dictionaries]);
 
+  // 管理图表显示顺序及 Tab 默认布局
   const [chartOrder, setChartOrder] = useState<Record<string, string[]>>(() => {
       const saved = localStorage.getItem('dashboard_v7_order');
       const defaults = {
@@ -228,7 +256,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
           try {
               const parsed = JSON.parse(saved);
               return {
-                  financial: parsed.financial || defaults.financial,
+                  financial: Array.from(new Set([...defaults.financial, ...(parsed.financial || [])])),
                   collection: (parsed.collection && parsed.collection.length > 0) ? parsed.collection : defaults.collection,
                   early: parsed.early || defaults.early
               };
@@ -241,6 +269,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   useEffect(() => { localStorage.setItem('dashboard_v7_filters', JSON.stringify(localFilters)); }, [localFilters]);
   useEffect(() => { localStorage.setItem('dashboard_v7_order', JSON.stringify(chartOrder)); }, [chartOrder]);
 
+  // 处理过滤器变更
   const toggleFilterValue = (chartKey: string, field: string, val: string, isZoomed = false) => {
       if (isZoomed) {
           setZoomedFilters(prev => {
@@ -281,6 +310,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
   };
   const handleDragEnd = () => { setDraggedKey(null); setDragOverKey(null); };
 
+  // 饼图数据处理逻辑：合并占比过小的项
   const processPieData = (data: {name: string, value: number}[]) => {
       if (data.length <= 7) return data;
       const sorted = [...data].sort((a, b) => b.value - a.value);
@@ -289,13 +319,18 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       return [...top, { name: '其他', value: others }];
   };
 
-  const { totalContract, totalCollected, totalPlannedCollection, contractTarget, collectionTarget, manualContractTarget, manualCollectionTarget, earlyTotal, getChartData, getProjectsForCard, getPlannedTotal } = useMemo(() => {
+  /**
+   * 核心分析引擎
+   * 负责所有 KPI 计算、图表聚合以及明细数据提取
+   */
+  const { totalContract, totalCollected, totalPlannedCollection, contractTarget, collectionTarget, manualContractTarget, manualCollectionTarget, earlyTotal, getChartData, getProjectsForCard, getPlannedTotal, getYearlyValue } = useMemo(() => {
     const parsedProjects = projects.map(p => ({
         ...p,
         annualData: safeParseJSON(p.annualData),
         collectionPlan: safeParseJSON(p.collectionPlan)
     }));
 
+    // 年份过滤逻辑：支持“全部年份”
     const yearProjects = selectedYear === 'all' ? parsedProjects : parsedProjects.filter(p => {
         const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear && !p.collectionPlan?.length;
         if (hasNoYearInfo) return true;
@@ -306,6 +341,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         return hasAnnualData || hasCollectionPlan || isEarlyForYear || isSignedThisYear;
     });
 
+    // 季度过滤逻辑：多场景感知（签约日期、实际收款、计划收款）
     const filterByQuarter = (data: Project[]) => {
         if (selectedQuarter === 'all') return data;
         const q = Number(selectedQuarter);
@@ -331,6 +367,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
     const projectsActive = baseData.filter(p => p.stage !== ProjectStage.EARLY);
     const earlyProjects = yearProjects.filter(p => p.stage === ProjectStage.EARLY);
 
+    // 计算特定时间段内的计划收款总额
     const calculatePlannedTotal = (p: Project) => {
         const planItems = (p.collectionPlan || []).filter((cp: any) => {
             const yearMatch = selectedYear === 'all' || cp.year === selectedYear;
@@ -340,6 +377,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         return planItems.reduce((sum: number, cp: any) => sum + (cp.amount || 0), 0);
     };
 
+    // 获取项目在选中年份的财务数值
     const getYearlyValue = (p: Project, key: keyof AnnualData) => {
         if (selectedYear === 'all') {
             return p.annualData?.reduce((acc: number, cur: any) => acc + (cur[key] as number || 0), 0) || 0;
@@ -390,8 +428,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                 case 'collectionSource': return processPieData(aggregate(filtered, 'source', p => getYearlyValue(p, 'collectedAmount')));
                 case 'contractType': return aggregate(filtered, 'category', p => (selectedYear === 'all' || p.signingDate?.startsWith(selectedYear.toString())) ? (p.deptAmount || 0) : 0);
                 case 'collectionType': return aggregate(filtered, 'category', p => getYearlyValue(p, 'collectedAmount'));
-                case 'regionalContract': return aggregate(filtered, 'region', p => (selectedYear === 'all' || p.signingDate?.startsWith(selectedYear.toString())) ? (p.deptAmount || 0) : 0);
-                case 'regionalCollection': return aggregate(filtered, 'region', p => getYearlyValue(p, 'collectedAmount'));
+                case 'regionalContract': return processPieData(aggregate(filtered, 'region', p => (selectedYear === 'all' || p.signingDate?.startsWith(selectedYear.toString())) ? (p.deptAmount || 0) : 0));
+                case 'regionalCollection': return processPieData(aggregate(filtered, 'region', p => getYearlyValue(p, 'collectedAmount')));
                 case 'collectionLevel': return processPieData(aggregate(filtered.filter(p => calculatePlannedTotal(p) > 0), 'paymentLevel', calculatePlannedTotal));
                 case 'collectionDept': return processPieData(aggregate(filtered.filter(p => calculatePlannedTotal(p) > 0), 'department', calculatePlannedTotal));
                 case 'earlySource': return processPieData(aggregate(filtered, 'source', p => p.totalAmount || 0));
@@ -452,7 +490,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
           return (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground bg-muted/5 rounded-3xl border-2 border-dashed border-border/50 animate-in fade-in">
                 <HelpCircle className="h-10 w-10 opacity-20" />
-                <p className="text-[11px] font-black uppercase tracking-widest italic">暂无相关收款计划数据</p>
+                <p className="text-[11px] font-black uppercase tracking-widest italic">暂无相关统计数据</p>
             </div>
           );
       }
@@ -545,6 +583,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         </div>
       </div>
 
+      {/* 放大图表面板 */}
       {zoomedChart && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-2xl animate-in fade-in duration-300" onClick={() => setZoomedChart(null)}>
               <div className="bg-background w-[95vw] h-[90vh] rounded-[3rem] shadow-2xl border border-white/10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative" onClick={(e) => e.stopPropagation()}>
@@ -573,6 +612,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
           </div>
       )}
 
+      {/* 项目数据明细面板 */}
       {viewingDataKey && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-300" onClick={() => setViewingDataKey(null)}>
               <div className="bg-background w-[95vw] max-w-6xl h-[85vh] rounded-[3rem] shadow-2xl border border-white/10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative" onClick={(e) => e.stopPropagation()}>
