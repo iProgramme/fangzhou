@@ -312,10 +312,10 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
 
   // 饼图数据处理逻辑：合并占比过小的项
   const processPieData = (data: {name: string, value: number}[]) => {
-      if (data.length <= 7) return data;
+      if (data.length <= 13) return data;
       const sorted = [...data].sort((a, b) => b.value - a.value);
-      const top = sorted.slice(0, 6);
-      const others = sorted.slice(6).reduce((acc, curr) => acc + curr.value, 0);
+      const top = sorted.slice(0, 12);
+      const others = sorted.slice(12).reduce((acc, curr) => acc + curr.value, 0);
       return [...top, { name: '其他', value: others }];
   };
 
@@ -334,8 +334,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
     const yearProjects = selectedYear === 'all' ? parsedProjects : parsedProjects.filter(p => {
         const hasNoYearInfo = !p.annualData?.length && !p.signingDate && !p.estimatedSignYear && !p.collectionPlan?.length;
         if (hasNoYearInfo) return true;
-        const hasAnnualData = p.annualData?.some((d: any) => d.year === selectedYear);
-        const hasCollectionPlan = p.collectionPlan?.some((cp: any) => cp.year === selectedYear);
+        const hasAnnualData = p.annualData?.some((d: any) => Number(d.year) === selectedYear);
+        const hasCollectionPlan = p.collectionPlan?.some((cp: any) => Number(cp.year) === selectedYear);
         const isEarlyForYear = p.stage === ProjectStage.EARLY && p.estimatedSignYear === selectedYear.toString();
         const isSignedThisYear = p.signingDate?.startsWith(selectedYear.toString());
         return hasAnnualData || hasCollectionPlan || isEarlyForYear || isSignedThisYear;
@@ -351,13 +351,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                 if (Math.ceil(m / 3) === q) return true;
             }
             if (p.annualData?.some((d: any) => {
-                if (selectedYear !== 'all' && d.year !== selectedYear) return false;
+                if (selectedYear !== 'all' && Number(d.year) !== selectedYear) return false;
                 if (!d.collectionDate) return false;
                 return Math.ceil(parseInt(d.collectionDate.split('-')[1]) / 3) === q;
             })) return true;
             if (p.collectionPlan?.some((cp: any) => {
-                if (selectedYear !== 'all' && cp.year !== selectedYear) return false;
-                return Math.ceil(cp.month / 3) === q;
+                if (selectedYear !== 'all' && Number(cp.year) !== selectedYear) return false;
+                return Math.ceil(Number(cp.month) / 3) === q;
             })) return true;
             return false;
         });
@@ -370,8 +370,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
     // 计算特定时间段内的计划收款总额
     const calculatePlannedTotal = (p: Project) => {
         const planItems = (p.collectionPlan || []).filter((cp: any) => {
-            const yearMatch = selectedYear === 'all' || cp.year === selectedYear;
-            const qMatch = selectedQuarter === 'all' || Math.ceil(cp.month / 3) === Number(selectedQuarter);
+            const yearMatch = selectedYear === 'all' || Number(cp.year) === selectedYear;
+            const qMatch = selectedQuarter === 'all' || Math.ceil(Number(cp.month) / 3) === Number(selectedQuarter);
             return yearMatch && qMatch;
         });
         return planItems.reduce((sum: number, cp: any) => sum + (cp.amount || 0), 0);
@@ -382,7 +382,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         if (selectedYear === 'all') {
             return p.annualData?.reduce((acc: number, cur: any) => acc + (cur[key] as number || 0), 0) || 0;
         }
-        const record = p.annualData?.find((d: any) => d.year === selectedYear);
+        const record = p.annualData?.find((d: any) => Number(d.year) === selectedYear);
         return (record?.[key] as number) || 0;
     };
 
@@ -466,7 +466,11 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       return { department: getUnique('department'), region: getUnique('region'), source: getUnique('source'), category: getUnique('category'), threeReviewType: getUnique('threeReviewType'), probability: getUnique('probability'), remarks: getUnique('remarks'), paymentLevel: getUnique('paymentLevel') };
   }, [projects]);
 
-  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
+  const COLORS = [
+    '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', 
+    '#10b981', '#06b6d4', '#3b82f6', '#2dd4bf', '#fb923c',
+    '#a855f7', '#f472b6', '#4ade80'
+  ];
   const fieldLabels: Record<string, string> = { department: '部门', region: '地区', source: '来源', category: '类别', threeReviewType: '三审', probability: '可能性', remarks: '是否靠谱', paymentLevel: '收款等级' };
 
   const chartConfigs: any = {
