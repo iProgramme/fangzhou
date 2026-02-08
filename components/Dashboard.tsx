@@ -514,11 +514,21 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       return (
           <ResponsiveContainer width="100%" height={h}>
               <PieChart>
-                  <Pie data={processPieData(chartData as any)} cx="50%" cy="50%" innerRadius={0} outerRadius={isZoomed ? 180 : 85} paddingAngle={2} minAngle={15} dataKey="value" isAnimationActive={false} labelLine={true} label={({ name, value, percent, x, y, cx }) => {
-                      if (percent < 0.01) return null; 
+                  <Pie 
+                    data={processPieData(chartData as any)} 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius={0} 
+                    outerRadius={isZoomed ? 180 : 85} 
+                    paddingAngle={2} 
+                    minAngle={15} 
+                    dataKey="value" 
+                    isAnimationActive={false} 
+                    labelLine={true}
+                    label={({ name, value, percent, x, y, cx }) => {
                       return (
                           <text x={x} y={y} fill="currentColor" className="text-[10px] font-black fill-foreground/70" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
-                              {`${name} ${formatWan(value)} (${(percent * 100).toFixed(0)}%)`}
+                              {`${name} ${formatWan(value)} (${(percent * 100).toFixed(1)}%)`}
                           </text>
                       );
                   }}>
