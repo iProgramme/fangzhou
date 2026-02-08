@@ -148,8 +148,17 @@ const App: React.FC = () => {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(mockUser));
     if (currentPath === '/login' || currentPath === '/') {
-      setCurrentPath('/'); 
-      window.location.hash = '/';
+      const isAdmin = mockUser.role === 'admin' || mockUser.role === 'manager';
+      if (isAdmin) {
+          setCurrentPath('/'); 
+          window.location.hash = '/';
+      } else {
+          // Redirect non-admin to their department
+          const deptSlug = Object.keys(DEPARTMENT_SLUGS).find(key => DEPARTMENT_SLUGS[key] === department);
+          const targetPath = deptSlug ? `/groups/${deptSlug}` : '/';
+          setCurrentPath(targetPath);
+          window.location.hash = targetPath;
+      }
     }
   };
 
@@ -304,7 +313,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (loading) return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
-    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+    const isAdmin = currentUser?.role === 'admin';
     
     const safeProjects = projects.map(p => ({
         ...p,
@@ -381,13 +390,35 @@ const App: React.FC = () => {
         }
     }
     
-    if (!isAdmin && (currentPath === '/' || currentPath.startsWith('/cycle/'))) {
+    if (!isAdmin && (currentPath === '/' || currentPath === '' || currentPath.startsWith('/cycle/'))) {
         const userDept = currentUser?.department;
         const deptSlug = Object.keys(DEPARTMENT_SLUGS).find(key => DEPARTMENT_SLUGS[key] === userDept);
         if (deptSlug) {
-            return <GroupProjectManager department={userDept!} projects={filteredSafeProjects.filter(p => p.department === userDept)} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} />;
+            return (
+                <GroupProjectManager 
+                    department={userDept!}
+                    projects={ filteredSafeProjects.filter(p => p.department === userDept) }
+                    dictionaries={dictionaries}
+                    users={users}
+                    onAddProject={handleAddProject}
+                    onEditProject={handleUpdateProject}
+                    onDeleteProject={handleDeleteProject}
+                    selectedYear={selectedYear as any}
+                    availableYears={availableYears}
+                    onSelectYear={(y) => setSelectedYear(y)}
+                    confirmCustom={confirmCustom}
+                />
+            );
         }
-        return <div className="p-10 text-center text-muted-foreground">您没有分配部门，请联系超级管理员</div>;
+        return (
+            <div className="p-20 text-center space-y-4">
+                <div className="mx-auto w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
+                    <Lock className="h-8 w-8" />
+                </div>
+                <h3 className="text-xl font-bold text-foreground">访问受限</h3>
+                <p className="text-muted-foreground max-w-xs mx-auto">您没有权限查看仪表盘或全局视图。请通过侧边栏进入您所属的部门管理页面，或联系管理员分配部门。</p>
+            </div>
+        );
     }
 
     switch (currentPath) {

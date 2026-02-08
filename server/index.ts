@@ -177,6 +177,11 @@ app.post('/api/users', async (req, res) => {
 app.put('/api/users/:id', async (req, res) => {
     try {
         const { id, createdAt, updatedAt, ...updateData } = req.body;
+        // If password is empty or not provided, remove it from updateData to prevent overwriting
+        if (!updateData.password || !updateData.password.trim()) {
+            delete updateData.password;
+        }
+        
         const result = await db.update(users)
             .set({ ...updateData, updatedAt: new Date() })
             .where(eq(users.id, req.params.id))
