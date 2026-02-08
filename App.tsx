@@ -214,7 +214,7 @@ const App: React.FC = () => {
           if (currentPath === '/cycle/early') filters = { stage: 'early' };
           else if (currentPath === '/cycle/collection') filters = {};
           else if (currentPath === '/cycle/progress') filters = { stage: 'progress' };
-          else if (currentPath === '/cycle/completed') filters = { stage: 'completed' };
+          else if (currentPath.startsWith('/cycle/completed')) filters = { stage: 'completed' };
           else if (currentPath.startsWith('/groups/')) {
               const slug = currentPath.split('/groups/')[1];
               if (slug) filters = { department: slug };

@@ -29,3 +29,5 @@ data/
 *.db
 *.sqlite
 
+shuju.json
+shuju123.json

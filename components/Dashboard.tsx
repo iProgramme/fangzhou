@@ -249,7 +249,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       const saved = localStorage.getItem('dashboard_v7_order');
       const defaults = {
           financial: ['contractSource', 'collectionSource', 'contractType', 'collectionType', 'regionalContract', 'regionalCollection'],
-          collection: ['collectionLevel', 'collectionDept'],
+          collection: ['collectionLevel', 'collectionDept', 'collectionPlanSource', 'collectionPlanCategory'],
           early: ['earlySource', 'earlyProbability', 'earlyType']
       };
       if (saved) {
@@ -257,7 +257,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
               const parsed = JSON.parse(saved);
               return {
                   financial: Array.from(new Set([...defaults.financial, ...(parsed.financial || [])])),
-                  collection: (parsed.collection && parsed.collection.length > 0) ? parsed.collection : defaults.collection,
+                  collection: (parsed.collection && parsed.collection.length > 0) ? Array.from(new Set([...parsed.collection, 'collectionPlanSource', 'collectionPlanCategory'])) : defaults.collection,
                   early: parsed.early || defaults.early
               };
           } catch { return defaults; }
@@ -432,6 +432,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                 case 'regionalCollection': return processPieData(aggregate(filtered, 'region', p => getYearlyValue(p, 'collectedAmount')));
                 case 'collectionLevel': return processPieData(aggregate(filtered.filter(p => calculatePlannedTotal(p) > 0), 'paymentLevel', calculatePlannedTotal));
                 case 'collectionDept': return processPieData(aggregate(filtered.filter(p => calculatePlannedTotal(p) > 0), 'department', calculatePlannedTotal));
+                case 'collectionPlanSource': return processPieData(aggregate(filtered.filter(p => calculatePlannedTotal(p) > 0), 'source', calculatePlannedTotal));
+                case 'collectionPlanCategory': return processPieData(aggregate(filtered.filter(p => calculatePlannedTotal(p) > 0), 'category', calculatePlannedTotal));
                 case 'earlySource': return processPieData(aggregate(filtered, 'source', p => p.totalAmount || 0));
                 case 'earlyProbability': return aggregate(filtered, 'remarks', p => p.totalAmount || 0);
                 case 'earlyType': return processPieData(aggregate(filtered, 'category', p => p.totalAmount || 0));
@@ -446,7 +448,15 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
             
             const currentChartFilters = localFilters[key] || {};
             const dataPool = key.startsWith('early') ? earlyProjects : (key.startsWith('collection') ? baseData : projectsActive);
-            return applyMultiFilter(dataPool, currentChartFilters);
+            let filtered = applyMultiFilter(dataPool, currentChartFilters);
+
+            if (['collectionLevel', 'collectionDept', 'collectionPlanSource', 'collectionPlanCategory'].includes(key)) {
+                filtered = filtered.filter(p => calculatePlannedTotal(p) > 0);
+            } else if (['collectionSource', 'collectionType', 'regionalCollection'].includes(key)) {
+                filtered = filtered.filter(p => getYearlyValue(p, 'collectedAmount') > 0);
+            }
+
+            return filtered;
         }
     };
   }, [selectedYear, selectedQuarter, projects, localFilters, manualTargets, zoomedFilters]); 
@@ -468,6 +478,8 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
     regionalCollection: { t: '地区收款业务分布', f: ['department', 'category'], icon: <PieIcon className="h-3.5 w-3.5"/> },
     collectionLevel: { t: '计划收款等级分布', f: ['department', 'region'], icon: <Target className="h-3.5 w-3.5"/> },
     collectionDept: { t: '项目组计划收款占比', f: ['paymentLevel', 'region'], icon: <Building className="h-3.5 w-3.5"/> },
+    collectionPlanSource: { t: '计划收款来源分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
+    collectionPlanCategory: { t: '计划收款类别分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
     earlySource: { t: '前期来源分析', f: ['region', 'department'], icon: <PieIcon className="h-3.5 w-3.5"/> },
     earlyProbability: { t: '是否靠谱分析', f: ['source', 'department', 'remarks'], icon: <Target className="h-3.5 w-3.5"/> },
     earlyType: { t: '前期类型分布', f: ['department', 'region'], icon: <PieIcon className="h-3.5 w-3.5"/> },
@@ -556,7 +568,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
                         <CompactKPICard title="年度计划收款" value={totalPlannedCollection} target={collectionTarget} manualTarget={0} onManualTargetChange={() => {}} color="amber" formula="【当前值】: Σ (所有项目的 [收款计划] 中对应年份的金额之和)。" onViewData={() => setViewingDataKey('kpi_total_planned')} />
                     </div>
                     <div className="flex flex-wrap gap-6">
-                        {['collectionLevel', 'collectionDept'].map(key => (
+                        {chartOrder.collection?.filter(key => chartConfigs[key]).map(key => (
                             <ChartCard key={key} title={chartConfigs[key].t} icon={chartConfigs[key].icon} fields={chartConfigs[key].f} filters={localFilters[key] || {}} options={options} labels={fieldLabels} onToggle={(f:string,v:string)=>toggleFilterValue(key,f,v)} isOpen={openFilterKey===key} onOpen={()=>setOpenFilterKey(openFilterKey===key?null:key)} onZoom={()=>handleZoom(key, chartConfigs[key].t, chartConfigs[key].f)} onViewData={() => setViewingDataKey(key)} size={chartSizes[key] || {w: 'calc(50% - 12px)'}} onResize={(w:string, h:number) => onResize(key, w, h)} onDragStart={() => handleDragStart(key)} onDragOver={(e:any) => handleDragOver(e, key)} onDragEnd={handleDragEnd} isDragging={draggedKey === key} isDragOver={dragOverKey === key}>{renderChartContent(key, chartSizes[key]?.h || 350)}</ChartCard>
                         ))}
                     </div>
