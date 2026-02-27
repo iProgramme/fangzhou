@@ -415,7 +415,7 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
         collectionTarget: projectsActive.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
         manualContractTarget: currentManual.contract,
         manualCollectionTarget: currentManual.collection,
-        earlyTotal: earlyProjects.reduce((acc, p) => acc + (p.totalAmount || 0), 0),
+        earlyTotal: earlyProjects.reduce((acc, p) => acc + (p.deptAmount || 0), 0),
         getPlannedTotal: calculatePlannedTotal,
         getYearlyValue,
         getChartData: (key: string, isZoomed = false) => {
