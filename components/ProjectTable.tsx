@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage } from '../types';
-import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown, Users } from 'lucide-react';
+import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage, User } from '../types';
+import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown, Users, Download } from 'lucide-react';
 import { nanoid } from 'nanoid';
 
 export interface ColumnDef {
@@ -182,7 +182,9 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
           // Inject Structured Team Data (Department as Group)
           d['团队和人员'] = users.map(u => ({ 
               label: u.name, 
-              group: u.department || '未分配'
+              group: u.department || '未分配',
+              bgColor: 'bg-gray-100',
+              textColor: 'text-gray-800'
           }));
       }
       return d;
@@ -230,7 +232,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [currentForm, setCurrentForm] = useState<Partial<Project>>({});
   const [formAnnualData, setFormAnnualData] = useState<AnnualData[]>([]);
-  const [formCollectionPlan, setFormCollectionPlan] = useState<{ year: number; amount: number; completed: boolean }[]>([]);
+  const [formCollectionPlan, setFormCollectionPlan] = useState<{ year: number; month: number; amount: number; completed: boolean }[]>([]);
   const [formTimeline, setFormTimeline] = useState<TimelineEvent[]>([]);
   const [formNextPlan, setFormNextPlan] = useState<TimelineEvent[]>([]);
   const [viewProject, setViewProject] = useState<Project | null>(null);
@@ -366,7 +368,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       });
       
       selected.forEach(s => {
-          if (!groups.includes(s) && !processedMembers.has(s)) {
+          if (!groups.includes(s as any) && !processedMembers.has(s)) {
               result.push(s);
           }
       });
@@ -513,6 +515,55 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       </div>
   );
 
+  const handleExport = () => {
+      if (!filteredData.length) return;
+      const exportColumns = sortedColumnDefs.filter(c => c.key !== 'actions' && visibleColumns.includes(c.key as string));
+      const headers = exportColumns.map(c => c.header).join(',');
+      const csvRows = filteredData.map(row => {
+          return exportColumns.map(col => {
+              let val: any = '';
+              if (col.key === 'annualContract') {
+                  val = getAnnualValue(row, 'contractAmount');
+              } else if (col.key === 'annualCollection') {
+                  val = getAnnualValue(row, 'collectedAmount');
+              } else if (col.key === 'plannedAmount') {
+                  val = getPlannedValue(row);
+              } else if (col.key === 'paymentProgress') {
+                  const total = row.deptAmount || row.totalAmount || row.instituteAmount || 0;
+                  const collected = row.collectedAmount || 0;
+                  val = total > 0 ? ((collected / total) * 100).toFixed(0) + '%' : '0%';
+              } else if (col.dictKey) {
+                 const dictVal = row[col.key as keyof Project] as string;
+                 if (dictionaries && dictionaries[col.dictKey]) {
+                     const item = dictionaries[col.dictKey].find(d => d.label === dictVal);
+                     val = item ? item.label : dictVal;
+                 } else { val = dictVal; }
+              } else {
+                  val = row[col.key as keyof Project];
+                  if (col.key === 'teamMembers') {
+                      val = val ? val.split(',').map((s: string) => s.trim()).filter(Boolean).join('; ') : '';
+                  } else if (val === true) val = '是';
+                  else if (val === false) val = '否';
+                  else if (Array.isArray(val)) val = val.length > 0 ? ((val[0] as any).title || '已记录') : '';
+              }
+              const stringVal = String(val === null || val === undefined ? '' : val);
+              if (stringVal.includes(',') || stringVal.includes('"') || stringVal.includes('\n')) {
+                  return `"${stringVal.replace(/"/g, '""')}"`;
+              }
+              return stringVal;
+          }).join(',');
+      });
+      const csvContent = "\uFEFF" + [headers, ...csvRows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${title || 'projects'}_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-3 animate-in fade-in duration-500">
       <div className="flex flex-col gap-3 md:flex-row md:items-center justify-between">
@@ -520,6 +571,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
         <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 md:w-56"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><input type="text" placeholder="项目名称、ID搜索..." className="h-9 w-full rounded-lg border bg-transparent px-3 text-sm pl-9" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
             <button onClick={() => setShowAdvancedSearch(!showAdvancedSearch)} className={`h-9 px-3 rounded-lg border text-sm font-bold flex items-center gap-2 ${showAdvancedSearch ? 'bg-primary text-white shadow-sm' : 'bg-background'}`}>高级搜索</button>
+            <button onClick={handleExport} className="h-9 px-3 rounded-lg border bg-background text-sm font-bold flex items-center gap-2 hover:bg-muted transition-colors"><Download className="h-4 w-4" /> 导出</button>
             <div className="relative" ref={columnToggleRef}>
                 <button onClick={() => setShowColumnToggle(!showColumnToggle)} className="h-9 px-3 rounded-lg border bg-background text-sm font-bold">视图定制</button>
                 {showColumnToggle && (
@@ -594,7 +646,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                             if (col.key === 'teamMembers') cell = renderTeamMembersCell(val as string);
                             else if (val === true) cell = <Check className="h-4 w-4 text-green-500" />;
                             else if (val === false) cell = <XIcon className="h-4 w-4 text-red-300" />;
-                            else if (Array.isArray(val)) cell = val.length > 0 ? (val[0].title || '已记录') : '-';
+                            else if (Array.isArray(val)) cell = val.length > 0 ? ((val[0] as any).title || '已记录') : '-';
                             else cell = (val as React.ReactNode) || '-';
                         }
                         return <td key={col.key as string} className="py-2 px-4 whitespace-nowrap font-bold text-gray-700">{cell}</td>;

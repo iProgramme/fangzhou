@@ -7,7 +7,7 @@ import { Project, ProjectStage, AnnualData } from '../types';
 import { 
   Wallet, TrendingUp, FileText, Target, PieChart as PieIcon, BarChart3, 
   Building, Calendar, Filter, X, CheckSquare, Square, Maximize2, 
-  GripHorizontal, HelpCircle, Minimize2, Edit, List, ArrowRight
+  GripHorizontal, HelpCircle, Minimize2, Edit, List, ArrowRight, Download
 } from 'lucide-react';
 
 /**
@@ -551,6 +551,42 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
       return chartConfigs[viewingDataKey || '']?.t || '项目明细列表';
   }, [viewingDataKey]);
 
+  const handleExportData = () => {
+      if (!viewingProjects.length) return;
+      const headers = ['项目名称', '部门', '负责人', '地区', '合同来源', '合同类别', '总合同额', '我所合同额', '已收款汇总/计划收款'];
+      const csvRows = viewingProjects.map((p: Project) => {
+          const row = [
+              p.name,
+              p.department,
+              p.responsiblePerson || '-',
+              p.region || '-',
+              p.source || '-',
+              p.category || '-',
+              p.totalAmount || 0,
+              p.deptAmount || 0,
+              viewingDataKey === 'kpi_total_planned' || viewingDataKey?.startsWith('collection') 
+                ? getPlannedTotal(p)
+                : getYearlyValue(p, 'collectedAmount')
+          ];
+          return row.map(val => {
+              const stringVal = String(val);
+              if (stringVal.includes(',') || stringVal.includes('"') || stringVal.includes('\n')) {
+                  return `"${stringVal.replace(/"/g, '""')}"`;
+              }
+              return stringVal;
+          }).join(',');
+      });
+      const csvContent = "\uFEFF" + [headers.join(','), ...csvRows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${viewingTitle}_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
   return (
     <>
       <div className="space-y-6 animate-in fade-in duration-500 pb-10 max-w-[1800px] mx-auto px-4">
@@ -643,7 +679,13 @@ const Dashboard: React.FC<DashboardProps> = ({ selectedYear, selectedQuarter, pr
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-3xl animate-in fade-in duration-300" onClick={() => setViewingDataKey(null)}>
               <div className="bg-background w-[95vw] max-w-6xl h-[85vh] rounded-[3rem] shadow-2xl border border-white/10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative" onClick={(e) => e.stopPropagation()}>
                   <div className="p-8 border-b border-border/50 flex justify-between items-center bg-muted/30 shrink-0">
-                      <div className="flex items-center gap-4"><div className="p-2 bg-emerald-500 rounded-xl text-white"><List className="h-6 w-6" /></div><h3 className="text-2xl font-black tracking-tight">{viewingTitle} - 项目明细 ({viewingProjects.length})</h3></div>
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-emerald-500 rounded-xl text-white"><List className="h-6 w-6" /></div>
+                        <h3 className="text-2xl font-black tracking-tight">{viewingTitle} - 项目明细 ({viewingProjects.length})</h3>
+                        <button onClick={handleExportData} className="ml-4 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all">
+                            <Download className="h-4 w-4" /> 导出 CSV
+                        </button>
+                      </div>
                       <button onClick={() => setViewingDataKey(null)} className="p-3 hover:bg-white/10 rounded-full transition-all"><X className="h-8 w-8 text-muted-foreground"/></button>
                   </div>
                   <div className="flex-1 overflow-auto p-0 custom-scrollbar">
