@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Filter, ArrowUpRight, CheckCircle2, Activity, Flag, Coins, Layers } from 'lucide-react';
+import { Calendar, Filter, ArrowUpRight, CheckCircle2, Activity, Flag, Coins, Layers, Download } from 'lucide-react';
 
 interface WorkRecord {
   id: string;
@@ -84,18 +84,67 @@ const WorkSummary: React.FC = () => {
       }
   };
 
+  const handleExport = () => {
+    if (filteredRecords.length === 0) {
+        alert('当前没有数据可导出');
+        return;
+    }
+
+    // CSV Header
+    const headers = ['日期', '项目名称', '任务/节点', '详细说明', '类型', '重要程度', '负责人', '部门', '完成状态', '完成日期'];
+    
+    // CSV Content
+    const rows = filteredRecords.map(r => [
+        r.date,
+        r.projectName,
+        r.title,
+        r.description || '',
+        r.recordType === 'plan' ? '计划' : '记录',
+        r.type === 'milestone' ? '重要(里程碑)' : r.type === 'payment' ? '财务' : '普通',
+        r.projectResponsible || '-',
+        r.projectDepartment || '-',
+        r.completed ? '已完成' : '未完成',
+        r.completedAt || '-'
+    ]);
+
+    // Combine with BOM for Excel utf-8 support
+    const csvContent = '\uFEFF' + [
+        headers.join(','), 
+        ...rows.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `工作动态汇总_${startDate}_${endDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
       <div className="flex flex-col gap-4 p-6 border-b border-border bg-card">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
-            <Layers className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-foreground">工作动态汇总</h1>
-            <p className="text-sm text-muted-foreground font-medium">全院项目工作记录与计划总览</p>
-          </div>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
+                <Layers className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-foreground">工作动态汇总</h1>
+                <p className="text-sm text-muted-foreground font-medium">全院项目工作记录与计划总览</p>
+              </div>
+            </div>
+            <button 
+                onClick={handleExport}
+                disabled={loading || filteredRecords.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-lg hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <Download className="h-4 w-4" />
+                导出 CSV
+            </button>
         </div>
         
         {/* Filters Toolbar */}
