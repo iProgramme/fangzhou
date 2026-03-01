@@ -9,6 +9,7 @@ import Watermark from './components/Watermark';
 import Login from './components/Login';
 import RecycleBin from './components/RecycleBin';
 import AIChat from './components/AIChat';
+import WorkSummary from './components/WorkSummary';
 import { CURRENT_USER } from './services/mockData';
 import { fetchProjects, createProject, updateProject, deleteProject, fetchUsers, fetchDictionaries, updateDictionary, fetchLogs, updateUser } from './services/api';
 import { EARLY_COLUMNS, COLLECTION_COLUMNS, PROGRESS_COLUMNS, COMPLETED_COLUMNS } from './constants';
@@ -470,6 +471,7 @@ const App: React.FC = () => {
 
       case '/settings': return <Settings users={users} currentUser={currentUser} onRefreshUsers={refreshUsers} logs={logs} dictionaries={dictionaries} onUpdateDictionary={handleUpdateDictionary} currentThemeCode={currentThemeCode} onUpdateThemeCode={setCurrentThemeCode} confirmCustom={confirmCustom} />;
       case '/recycle-bin': return currentUser?.role === 'admin' ? <RecycleBin confirmCustom={confirmCustom} /> : <div className="p-10 text-center text-red-500">权限不足</div>;
+      case '/work-summary': return <WorkSummary />;
       default: return <Dashboard selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} selectedQuarter={selectedQuarter} projects={filteredSafeProjects} />;
     }
   };

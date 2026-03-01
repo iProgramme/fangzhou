@@ -43,6 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpen, setI
         { name: '各组项目列表及进度', path: '/cycle/progress' },
         { name: '已完成项目 (有合同)', path: '/cycle/completed/contract' },
         { name: '已完成项目 (无合同)', path: '/cycle/completed/no-contract' },
+        { name: '工作动态汇总', path: '/work-summary' },
       ]
     },
     {

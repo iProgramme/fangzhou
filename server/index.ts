@@ -208,6 +208,84 @@ app.post('/api/dictionaries', async (req, res) => {
     res.json(result[0]);
 });
 
+// 新增: 工作记录汇总接口
+app.get('/api/work-summary', async (req, res) => {
+    try {
+        const { startDate, endDate, department } = req.query;
+        
+        const conditions = [isNull(projects.deletedAt)];
+        if (department && typeof department === 'string' && DEPT_MAPPING[department]) {
+            conditions.push(eq(projects.department, DEPT_MAPPING[department]));
+        }
+
+        const allProjects = await db.query.projects.findMany({
+            where: and(...conditions),
+            columns: {
+                id: true,
+                name: true,
+                timeline: true,
+                nextPlan: true,
+                responsiblePerson: true,
+                department: true
+            }
+        });
+
+        interface TimelineEvent {
+            id: string;
+            date: string;
+            title: string;
+            description: string;
+            type: string;
+            completed?: boolean;
+            completedAt?: string;
+        }
+
+        const allRecords: any[] = [];
+
+        allProjects.forEach(p => {
+            // 处理 timeline (重要工作记录)
+            if (Array.isArray(p.timeline)) {
+                (p.timeline as unknown as TimelineEvent[]).forEach(t => {
+                    if ((!startDate || t.date >= (startDate as string)) && (!endDate || t.date <= (endDate as string))) {
+                        allRecords.push({
+                            ...t,
+                            projectId: p.id,
+                            projectName: p.name,
+                            projectResponsible: p.responsiblePerson,
+                            projectDepartment: p.department,
+                            recordType: 'record' // 标记为记录
+                        });
+                    }
+                });
+            }
+
+            // 处理 nextPlan (工作计划)
+            if (Array.isArray(p.nextPlan)) {
+                (p.nextPlan as unknown as TimelineEvent[]).forEach(t => {
+                    if ((!startDate || t.date >= (startDate as string)) && (!endDate || t.date <= (endDate as string))) {
+                        allRecords.push({
+                            ...t,
+                            projectId: p.id,
+                            projectName: p.name,
+                            projectResponsible: p.responsiblePerson,
+                            projectDepartment: p.department,
+                            recordType: 'plan' // 标记为计划
+                        });
+                    }
+                });
+            }
+        });
+
+        // 按日期倒序排序
+        allRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        res.json(allRecords);
+    } catch (error: any) {
+        console.error('Fetch Work Summary Error:', error);
+        res.status(500).json({ error: '获取工作汇总失败' });
+    }
+});
+
 app.get('/api/logs', async (req, res) => {
     const logs = await db.query.operationLogs.findMany({ orderBy: [desc(operationLogs.timestamp)], limit: 100 });
     res.json(logs);
