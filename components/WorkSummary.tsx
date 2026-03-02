@@ -14,6 +14,7 @@ interface WorkRecord {
   projectResponsible: string | null;
   projectDepartment: string;
   recordType: 'record' | 'plan';
+  createdBy?: string;
 }
 
 const WorkSummary: React.FC = () => {

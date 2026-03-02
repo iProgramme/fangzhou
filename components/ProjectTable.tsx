@@ -13,6 +13,7 @@ export interface ColumnDef {
 
 interface ProjectTableProps {
   data: Project[]; title?: string; columns: ColumnDef[]; dictionaries?: SystemDictionary; users?: User[]; onAddProject?: (newProject: any) => Promise<boolean>; onEditProject?: (project: Project) => Promise<boolean>; onDeleteProject?: (id: string) => void; showAddButton?: boolean; selectedYear: number | 'all'; availableYears: number[]; onSelectYear: (year: number | 'all') => void; confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void; defaultStage?: string;
+  currentUser?: User | null;
 }
 
 const formatMoney = (val: any) => val ? `¥${Number(val).toLocaleString()}` : '-';
@@ -170,8 +171,13 @@ const CustomMultiSelect = ({ value, onChange, options, isTree = false }: { value
 
 const ProjectTable: React.FC<ProjectTableProps> = ({ 
     data, title, columns, dictionaries: originalDictionaries, users, onAddProject, onEditProject, onDeleteProject,
-    showAddButton, selectedYear, availableYears, onSelectYear, confirmCustom, defaultStage
+    showAddButton, selectedYear, availableYears, onSelectYear, confirmCustom, defaultStage, currentUser
 }) => {
+    // Debug: Check if currentUser is received
+    useEffect(() => {
+        console.log('ProjectTable mounted. Current User:', currentUser);
+    }, [currentUser]);
+
     const dictionaries = useMemo(() => {
       const d = { ...originalDictionaries };
       
@@ -428,7 +434,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
               <div className="flex items-center justify-between">
                   <h4 className="text-lg font-black flex items-center gap-2">{title}</h4>
                   {setItems && (
-                      <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false}, ...items])} className="text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 bg-primary">
+                      <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false, createdBy: currentUser?.name || ''}, ...items])} className="text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 bg-primary">
                           <Plus className="h-3 w-3"/> 添加
                       </button>
                   )}
@@ -505,6 +511,11 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                   <textarea className={`w-full text-[11px] font-medium text-gray-600 bg-gray-50/50 rounded p-2 border-0 outline-none resize-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-gray-300 ${ev.completed ? 'line-through' : ''}`} placeholder="补充说明..." rows={2} value={ev.description} onChange={e => {const n=[...items]; n[idx].description=e.target.value; setItems(n);}} />
                               ) : (
                                   <p className={`text-[11px] font-medium text-muted-foreground leading-relaxed ${ev.completed ? 'line-through' : ''}`}>{ev.description}</p>
+                              )}
+                              {ev.createdBy && (
+                                  <div className="mt-2 flex justify-end">
+                                      <span className="text-[8px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded opacity-60">记录人: {ev.createdBy}</span>
+                                  </div>
                               )}
                           </div>
                       </div>

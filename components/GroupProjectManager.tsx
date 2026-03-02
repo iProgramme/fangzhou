@@ -15,11 +15,12 @@ interface GroupProjectManagerProps {
     availableYears: number[];
     onSelectYear: (year: number) => void;
     confirmCustom: (title: string, message: string, onConfirm: () => void, isDestructive?: boolean) => void;
+    currentUser?: any;
 }
 
 const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
     department, projects, dictionaries, users, onAddProject, onEditProject, onDeleteProject,
-    selectedYear, availableYears, onSelectYear, confirmCustom
+    selectedYear, availableYears, onSelectYear, confirmCustom, currentUser
 }) => {
     const [activeTab, setActiveTab] = useState<string>('progress');
 
@@ -74,6 +75,7 @@ const GroupProjectManager: React.FC<GroupProjectManagerProps> = ({
                 onSelectYear={onSelectYear}
                 confirmCustom={confirmCustom}
                 defaultStage={getStage()}
+                currentUser={currentUser}
             />
         </div>
     );

@@ -386,6 +386,7 @@ const App: React.FC = () => {
                     availableYears={availableYears}
                     onSelectYear={(y) => setSelectedYear(y)}
                     confirmCustom={confirmCustom}
+                    currentUser={currentUser}
                 />
             );
         }
@@ -408,6 +409,7 @@ const App: React.FC = () => {
                     availableYears={availableYears}
                     onSelectYear={(y) => setSelectedYear(y)}
                     confirmCustom={confirmCustom}
+                    currentUser={currentUser}
                 />
             );
         }
@@ -424,7 +426,7 @@ const App: React.FC = () => {
 
     switch (currentPath) {
       case '/': return <Dashboard selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} selectedQuarter={selectedQuarter} projects={filteredSafeProjects} dictionaries={dictionaries} onUpdateDictionary={handleUpdateDictionary} />;
-      case '/cycle/early': return <ProjectTable title="前期项目跟进" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.EARLY} />;
+      case '/cycle/early': return <ProjectTable title="前期项目跟进" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.EARLY)} columns={EARLY_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.EARLY} currentUser={currentUser} />;
       
       case '/cycle/collection': {
           const collectionData = safeProjects.filter(p => {
@@ -449,10 +451,10 @@ const App: React.FC = () => {
 
               return true;
           });
-          return <ProjectTable title="年度收款计划" data={collectionData} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COLLECTION} />;
+          return <ProjectTable title="年度收款计划" data={collectionData} columns={COLLECTION_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COLLECTION} currentUser={currentUser} />;
       }
 
-      case '/cycle/progress': return <ProjectTable title="各组项目列表及进度" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)} columns={PROGRESS_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.GROUP_PROGRESS} />;
+      case '/cycle/progress': return <ProjectTable title="各组项目列表及进度" data={filteredSafeProjects.filter(p => p.stage === ProjectStage.GROUP_PROGRESS)} columns={PROGRESS_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.GROUP_PROGRESS} currentUser={currentUser} />;
       
       case '/cycle/completed': 
       case '/cycle/completed/contract':
@@ -466,7 +468,7 @@ const App: React.FC = () => {
               title = "已完成项目 (无合同)";
               filtered = filtered.filter(p => !p.contractNo || p.contractNo.trim() === '');
           }
-          return <ProjectTable title={title} data={filtered} columns={COMPLETED_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COMPLETED} />;
+          return <ProjectTable title={title} data={filtered} columns={COMPLETED_COLUMNS as any} dictionaries={dictionaries} users={users} onAddProject={handleAddProject} onEditProject={handleUpdateProject} onDeleteProject={handleDeleteProject} showAddButton={true} selectedYear={selectedYear as any} availableYears={availableYears} onSelectYear={(y) => setSelectedYear(y)} confirmCustom={confirmCustom} defaultStage={ProjectStage.COMPLETED} currentUser={currentUser} />;
       }
 
       case '/settings': return <Settings users={users} currentUser={currentUser} onRefreshUsers={refreshUsers} logs={logs} dictionaries={dictionaries} onUpdateDictionary={handleUpdateDictionary} currentThemeCode={currentThemeCode} onUpdateThemeCode={setCurrentThemeCode} confirmCustom={confirmCustom} />;
