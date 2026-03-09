@@ -219,6 +219,17 @@ const App: React.FC = () => {
           } finally {
               setLoading(false);
           }
+      } else if (currentPath.startsWith('/projects/') && currentPath.endsWith('/edit')) {
+          // 项目编辑页面：加载所有项目以便查找
+          setLoading(true);
+          try {
+              const p = await fetchProjects({});
+              setProjects(p);
+          } catch (e) {
+              console.error('Failed to load projects', e);
+          } finally {
+              setLoading(false);
+          }
       } else {
           let filters: any = null;
           if (currentPath === '/cycle/early') filters = { stage: 'early' };
@@ -421,6 +432,43 @@ const App: React.FC = () => {
                 <h3 className="text-xl font-bold text-foreground">访问受限</h3>
                 <p className="text-muted-foreground max-w-xs mx-auto">您没有权限查看仪表盘或全局视图。请通过侧边栏进入您所属的部门管理页面，或联系管理员分配部门。</p>
             </div>
+        );
+    }
+
+    // 项目编辑路由
+    if (currentPath.startsWith('/projects/') && currentPath.endsWith('/edit')) {
+        if (loading) {
+            return <div className="p-10 flex justify-center text-muted-foreground">加载数据中...</div>;
+        }
+        const projectId = currentPath.split('/projects/')[1].split('/edit')[0];
+        const project = projects.find(p => p.id === projectId);
+        if (!project) {
+            return <div className="p-10 text-center text-red-500">项目不存在</div>;
+        }
+        
+        const projectWithParsedData = {
+            ...project,
+            timeline: safeParseJSON(project.timeline),
+            nextPlan: safeParseJSON(project.nextPlan),
+            annualData: safeParseJSON(project.annualData),
+            collectionPlan: safeParseJSON(project.collectionPlan)
+        };
+        
+        return (
+            <ProjectTable
+                title="编辑项目"
+                data={[projectWithParsedData]}
+                columns={PROGRESS_COLUMNS as any}
+                dictionaries={dictionaries}
+                users={users}
+                onEditProject={handleUpdateProject}
+                onDeleteProject={handleDeleteProject}
+                selectedYear={selectedYear as any}
+                availableYears={availableYears}
+                onSelectYear={(y) => setSelectedYear(y)}
+                confirmCustom={confirmCustom}
+                currentUser={currentUser}
+            />
         );
     }
 

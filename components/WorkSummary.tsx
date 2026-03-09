@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Filter, ArrowUpRight, CheckCircle2, Activity, Flag, Coins, Layers, Download } from 'lucide-react';
+import { Department, DEPARTMENT_SLUGS } from '../types';
 
 interface WorkRecord {
   id: string;
@@ -20,12 +21,13 @@ interface WorkRecord {
 const WorkSummary: React.FC = () => {
   const [records, setRecords] = useState<WorkRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // 筛选状态
   const [filterType, setFilterType] = useState<'all' | 'record' | 'plan'>('all');
   const [importanceType, setImportanceType] = useState<'all' | 'progress' | 'milestone' | 'payment'>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
 
   // 初始化默认日期范围 (最近一年) - 使用原生 JS 替换 subYears
   useEffect(() => {
@@ -41,7 +43,7 @@ const WorkSummary: React.FC = () => {
     if (startDate && endDate) {
         fetchRecords();
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, selectedDepartment]);
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -49,7 +51,8 @@ const WorkSummary: React.FC = () => {
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
-      
+      if (selectedDepartment !== 'all') params.append('department', selectedDepartment);
+
       const res = await fetch(`/api/work-summary?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
@@ -66,6 +69,11 @@ const WorkSummary: React.FC = () => {
       const matchImportance = importanceType === 'all' || r.type === importanceType;
       return matchRecordType && matchImportance;
   });
+
+  // 跳转到项目编辑页面
+  const navigateToProjectEdit = (projectId: string) => {
+    window.location.hash = `/projects/${projectId}/edit`;
+  };
 
   const getRecordTypeBadge = (type: string, recordType: 'record' | 'plan') => {
       if (recordType === 'plan') return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">计划</span>;
@@ -153,19 +161,34 @@ const WorkSummary: React.FC = () => {
              {/* Date Range */}
              <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-xl border border-border shadow-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
-                <input 
-                    type="date" 
+                <input
+                    type="date"
                     className="bg-transparent text-xs font-bold px-1 outline-none text-foreground"
                     value={startDate}
                     onChange={e => setStartDate(e.target.value)}
                 />
                 <span className="text-muted-foreground text-xs">至</span>
-                <input 
-                    type="date" 
+                <input
+                    type="date"
                     className="bg-transparent text-xs font-bold px-1 outline-none text-foreground"
                     value={endDate}
                     onChange={e => setEndDate(e.target.value)}
                 />
+             </div>
+
+             {/* Department Filter */}
+             <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-xl border border-border shadow-sm">
+                <Filter className="h-4 w-4 text-muted-foreground ml-2" />
+                <select
+                    value={selectedDepartment}
+                    onChange={e => setSelectedDepartment(e.target.value)}
+                    className="bg-transparent text-xs font-bold px-2 outline-none text-foreground cursor-pointer"
+                >
+                    <option value="all">全部组</option>
+                    {Object.entries(DEPARTMENT_SLUGS).map(([slug, dept]) => (
+                        <option key={slug} value={slug}>{dept}</option>
+                    ))}
+                </select>
              </div>
 
              <div className="h-8 w-px bg-border mx-2 hidden md:block" />
@@ -289,7 +312,7 @@ const WorkSummary: React.FC = () => {
                                 <div className="flex items-center flex-wrap gap-4 pt-2 border-t border-dashed border-border text-xs font-medium text-muted-foreground">
                                     <span className="flex items-center gap-1.5 bg-primary/5 text-primary px-2 py-1 rounded-md">
                                         <ArrowUpRight className="h-3 w-3" />
-                                        项目: <span className="font-bold">{record.projectName}</span>
+                                        项目：<button onClick={() => navigateToProjectEdit(record.projectId)} className="font-bold hover:underline decoration-primary decoration-2 underline-offset-2 transition-all">{record.projectName}</button>
                                     </span>
                                     <span className="flex items-center gap-1">
                                         负责人: <span className="text-foreground">{record.projectResponsible || '-'}</span>
