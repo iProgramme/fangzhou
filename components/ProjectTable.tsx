@@ -434,7 +434,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
               <div className="flex items-center justify-between">
                   <h4 className="text-lg font-black flex items-center gap-2">{title}</h4>
                   {setItems && (
-                      <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false, createdBy: currentUser?.name || ''}, ...items])} className="text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 bg-primary">
+                      <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false, createdBy: currentUser?.id || ''}, ...items])} className="text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 bg-primary">
                           <Plus className="h-3 w-3"/> 添加
                       </button>
                   )}
