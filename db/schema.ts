@@ -102,3 +102,16 @@ export const operationLogs = sqliteTable('operation_logs', {
   details: text('details'), // 详情
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`), // 时间戳
 });
+
+// 工作记录回复表（timeline / nextPlan 的扁平回复，每人一条）
+export const recordReplies = sqliteTable('record_replies', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),          // 关联项目ID
+  recordType: text('record_type').notNull(),        // 'timeline' | 'nextPlan'
+  recordId: text('record_id').notNull(),            // JSON 数组中那条记录的 id
+  userId: text('user_id').references(() => users.id),
+  userName: text('user_name').notNull(),
+  content: text('content').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`),
+});

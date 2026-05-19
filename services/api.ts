@@ -1,5 +1,5 @@
 
-import { Project, User, SystemDictionary, OperationLog, DictItem } from '../types';
+import { Project, User, SystemDictionary, OperationLog, DictItem, RecordReply } from '../types';
 import { INITIAL_DICTIONARIES, MOCK_USERS, MOCK_PROJECTS, INITIAL_LOGS } from './mockData';
 
 const API_BASE = '/api';
@@ -179,4 +179,38 @@ export const fetchLogs = async (): Promise<OperationLog[]> => {
         console.warn('API 获取日志失败, 使用模拟数据');
         return INITIAL_LOGS;
     }
+};
+
+// --- Record Replies ---
+export const fetchReplies = async (projectId: string, recordType: 'timeline' | 'nextPlan', recordId: string): Promise<RecordReply[]> => {
+    try {
+        const res = await fetch(`${API_BASE}/records/${projectId}/${recordType}/${recordId}/replies`);
+        if (!res.ok) throw new Error('获取回复失败');
+        return res.json();
+    } catch (e) {
+        console.warn('获取回复失败', e);
+        return [];
+    }
+};
+
+export const saveReply = async (projectId: string, recordType: 'timeline' | 'nextPlan', recordId: string, userId: string, userName: string, content: string): Promise<RecordReply> => {
+    const res = await fetch(`${API_BASE}/records/${projectId}/${recordType}/${recordId}/replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, userName, content })
+    });
+    if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '保存回复失败');
+    }
+    return res.json();
+};
+
+export const deleteReply = async (projectId: string, recordType: 'timeline' | 'nextPlan', recordId: string, userId: string): Promise<void> => {
+    const res = await fetch(`${API_BASE}/records/${projectId}/${recordType}/${recordId}/replies`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+    });
+    if (!res.ok) throw new Error('删除回复失败');
 };

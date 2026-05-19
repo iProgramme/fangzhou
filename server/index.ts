@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { db } from '../db/index.js';
-import { projects, users, operationLogs, systemDictionaries } from '../db/schema.js';
+import { projects, users, operationLogs, systemDictionaries, recordReplies } from '../db/schema.js';
 import { eq, desc, and, isNull, isNotNull } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import fs from 'fs/promises';
@@ -289,6 +289,72 @@ app.get('/api/work-summary', async (req, res) => {
 app.get('/api/logs', async (req, res) => {
     const logs = await db.query.operationLogs.findMany({ orderBy: [desc(operationLogs.timestamp)], limit: 100 });
     res.json(logs);
+});
+
+// 6. 工作记录回复（扁平式：每人每条记录一条回复，可修改删除）
+app.get('/api/records/:projectId/:recordType/:recordId/replies', async (req, res) => {
+    try {
+        const { projectId, recordType, recordId } = req.params;
+        const replies = await db.query.recordReplies.findMany({
+            where: and(
+                eq(recordReplies.projectId, projectId),
+                eq(recordReplies.recordType, recordType),
+                eq(recordReplies.recordId, recordId)
+            )
+        });
+        res.json(replies);
+    } catch (error) { res.status(500).json({ error: '获取回复失败' }); }
+});
+
+app.post('/api/records/:projectId/:recordType/:recordId/replies', async (req, res) => {
+    try {
+        const { projectId, recordType, recordId } = req.params;
+        const { userId, userName, content } = req.body;
+        if (!content?.trim()) return res.status(400).json({ error: '回复内容不能为空' });
+
+        const existing = await db.query.recordReplies.findFirst({
+            where: and(
+                eq(recordReplies.projectId, projectId),
+                eq(recordReplies.recordType, recordType),
+                eq(recordReplies.recordId, recordId),
+                eq(recordReplies.userId, userId || '')
+            )
+        });
+
+        if (existing) {
+            const updated = await db.update(recordReplies)
+                .set({ content: content.trim(), updatedAt: new Date() })
+                .where(eq(recordReplies.id, existing.id))
+                .returning();
+            return res.json(updated[0]);
+        }
+
+        const result = await db.insert(recordReplies).values({
+            id: nanoid(10),
+            projectId,
+            recordType,
+            recordId,
+            userId: userId || '',
+            userName: userName || '匿名',
+            content: content.trim()
+        }).returning();
+        res.json(result[0]);
+    } catch (error: any) { res.status(500).json({ error: error.message || '保存回复失败' }); }
+});
+
+app.delete('/api/records/:projectId/:recordType/:recordId/replies', async (req, res) => {
+    try {
+        const { projectId, recordType, recordId } = req.params;
+        const { userId } = req.body;
+        const conditions = [
+            eq(recordReplies.projectId, projectId),
+            eq(recordReplies.recordType, recordType),
+            eq(recordReplies.recordId, recordId)
+        ];
+        if (userId) conditions.push(eq(recordReplies.userId, userId));
+        await db.delete(recordReplies).where(and(...conditions));
+        res.json({ success: true });
+    } catch (error) { res.status(500).json({ error: '删除回复失败' }); }
 });
 
 // AI 上下文缓存

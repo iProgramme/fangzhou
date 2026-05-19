@@ -142,3 +142,15 @@ export interface DictItem {
 export interface SystemDictionary {
     [key: string]: DictItem[];
 }
+
+export interface RecordReply {
+    id: string;
+    projectId: string;
+    recordType: 'timeline' | 'nextPlan';
+    recordId: string;
+    userId: string;
+    userName: string;
+    content: string;
+    createdAt: string;
+    updatedAt: string;
+}

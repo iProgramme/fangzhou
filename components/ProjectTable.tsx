@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage, User } from '../types';
-import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown, Users, Download } from 'lucide-react';
+import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage, User, RecordReply } from '../types';
+import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown, Users, Download, MessageCircle, Send, Trash } from 'lucide-react';
 import { nanoid } from 'nanoid';
+import { fetchReplies, saveReply, deleteReply } from '../services/api';
 
 export interface ColumnDef {
   key: keyof Project | 'actions' | 'annualContract' | 'annualCollection' | 'plannedAmount' | 'statusLight';
@@ -242,6 +243,10 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   const [formTimeline, setFormTimeline] = useState<TimelineEvent[]>([]);
   const [formNextPlan, setFormNextPlan] = useState<TimelineEvent[]>([]);
   const [viewProject, setViewProject] = useState<Project | null>(null);
+  const [expandedReplyId, setExpandedReplyId] = useState<string | null>(null);
+  const [repliesMap, setRepliesMap] = useState<Record<string, RecordReply[]>>({});
+  const [replyDraft, setReplyDraft] = useState<Record<string, string>>({});
+  const [replyLoading, setReplyLoading] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -423,108 +428,226 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   };
 
   const renderTimelineSection = (
-      title: string, 
-      items: TimelineEvent[], 
+      title: string,
+      items: TimelineEvent[],
       setItems: React.Dispatch<React.SetStateAction<TimelineEvent[]>> | null,
       colorTheme: 'primary' | 'accent' = 'primary',
-      showCheckbox: boolean = false
-  ) => (
-      <div className="flex flex-col flex-1 basis-1/2 min-w-0 h-full overflow-hidden">
-          <div className="flex-shrink-0 space-y-2 mb-4">
-              <div className="flex items-center justify-between">
-                  <h4 className="text-lg font-black flex items-center gap-2">{title}</h4>
-                  {setItems && (
-                      <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false, createdBy: currentUser?.id || ''}, ...items])} className="text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 bg-primary">
-                          <Plus className="h-3 w-3"/> 添加
-                      </button>
-                  )}
-              </div>
-          </div>
+      showCheckbox: boolean = false,
+      projectId?: string,
+      recordType?: 'timeline' | 'nextPlan'
+  ) => {
+      const isViewMode = !setItems;
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden pr-4 pl-1 pt-1 pb-10 custom-scrollbar">
-              <div className="space-y-4 relative">
-                  {items.length > 0 && <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-gray-100 rounded-full" />}
-                  {items.map((ev, idx) => (
-                      <div key={ev.id} className="relative pl-12 group">
-                          {showCheckbox ? (
-                              <div className="absolute left-0 top-0 h-10 w-10 z-20 flex items-center justify-center">
-                                  <input 
-                                    type="checkbox" 
-                                    disabled={!setItems}
-                                    checked={!!ev.completed} 
-                                    onChange={e => {
-                                        if (!setItems) return;
-                                        const n=[...items]; 
-                                        n[idx].completed=e.target.checked;
-                                        if (e.target.checked) {
-                                            n[idx].completedAt = new Date().toISOString().split('T')[0];
-                                        } else {
-                                            n[idx].completedAt = undefined;
-                                        }
-                                        setItems(n);
-                                    }}
-                                    className="h-6 w-6 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20 cursor-pointer transition-all disabled:cursor-default"
-                                  />
-                              </div>
-                          ) : (
-                              <div className={`absolute left-0 top-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm z-10 border-4 border-white transition-colors ${ev.type === 'milestone' ? 'bg-amber-100 text-amber-600' : ev.type === 'payment' ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                                  {ev.type === 'milestone' ? <Milestone className="h-5 w-5" /> : ev.type === 'payment' ? <Coins className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
-                              </div>
-                          )}
-                          <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all group-hover:border-gray-200 ${ev.completed ? 'opacity-50' : ''}`}>
-                              <div className="flex gap-2 mb-2">
-                                  <div className="flex flex-col gap-1 flex-1">
-                                      <div className="flex items-center gap-1">
-                                          <span className="text-[9px] font-black text-muted-foreground uppercase">{ev.completed ? '计划日期' : '日期'}</span>
+      const toggleReply = async (evId: string) => {
+          if (expandedReplyId === evId) {
+              setExpandedReplyId(null);
+              return;
+          }
+          setExpandedReplyId(evId);
+          if (projectId && recordType && !repliesMap[evId]) {
+              setReplyLoading(evId);
+              try {
+                  const replies = await fetchReplies(projectId, recordType, evId);
+                  setRepliesMap(prev => ({ ...prev, [evId]: replies }));
+              } catch (e) {
+                  console.error('Failed to load replies', e);
+              } finally {
+                  setReplyLoading(null);
+              }
+          }
+      };
+
+      const handleSaveReply = async (evId: string) => {
+          if (!projectId || !recordType || !currentUser) return;
+          const content = replyDraft[evId] || '';
+          if (!content.trim()) return;
+          try {
+              const saved = await saveReply(projectId, recordType, evId, currentUser.id, currentUser.name, content);
+              setRepliesMap(prev => ({
+                  ...prev,
+                  [evId]: prev[evId] ? prev[evId].map(r => r.userId === currentUser.id ? saved : r) : [saved]
+              }));
+              setReplyDraft(prev => ({ ...prev, [evId]: '' }));
+          } catch (e) {
+              console.error('Failed to save reply', e);
+          }
+      };
+
+      const handleDeleteReply = async (evId: string, replyId: string) => {
+          if (!projectId || !recordType || !currentUser) return;
+          confirmCustom('删除回复', '确定删除这条回复？', async () => {
+              try {
+                  await deleteReply(projectId, recordType, evId, currentUser.id);
+                  setRepliesMap(prev => ({
+                      ...prev,
+                      [evId]: prev[evId].filter(r => r.id !== replyId)
+                  }));
+              } catch (e) {
+                  console.error('Failed to delete reply', e);
+              }
+          }, true);
+      };
+
+      return (
+          <div className="flex flex-col flex-1 basis-1/2 min-w-0 h-full overflow-hidden">
+              <div className="flex-shrink-0 space-y-2 mb-4">
+                  <div className="flex items-center justify-between">
+                      <h4 className="text-lg font-black flex items-center gap-2">{title}</h4>
+                      {setItems && (
+                          <button type="button" onClick={() => setItems([{id: nanoid(), date:new Date().toISOString().split('T')[0], title:'', description:'', type:'progress', completed: false, createdBy: currentUser?.id || ''}, ...items])} className="text-xs font-black text-white px-3 py-1.5 rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-1 bg-primary">
+                              <Plus className="h-3 w-3"/> 添加
+                          </button>
+                      )}
+                  </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto overflow-x-hidden pr-4 pl-1 pt-1 pb-10 custom-scrollbar">
+                  <div className="space-y-4 relative">
+                      {items.length > 0 && <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-gray-100 rounded-full" />}
+                      {items.map((ev, idx) => {
+                          const replies = repliesMap[ev.id] || [];
+                          const userReply = currentUser ? replies.find(r => r.userId === currentUser.id) : null;
+                          const isExpanded = expandedReplyId === ev.id;
+
+                          return (
+                              <div key={ev.id} className="relative pl-12 group">
+                                  {showCheckbox ? (
+                                      <div className="absolute left-0 top-0 h-10 w-10 z-20 flex items-center justify-center">
+                                          <input
+                                            type="checkbox"
+                                            disabled={!setItems}
+                                            checked={!!ev.completed}
+                                            onChange={e => {
+                                                if (!setItems) return;
+                                                const n=[...items];
+                                                n[idx].completed=e.target.checked;
+                                                if (e.target.checked) {
+                                                    n[idx].completedAt = new Date().toISOString().split('T')[0];
+                                                } else {
+                                                    n[idx].completedAt = undefined;
+                                                }
+                                                setItems(n);
+                                            }}
+                                            className="h-6 w-6 rounded-lg border-2 border-border bg-card text-primary focus:ring-primary/20 cursor-pointer transition-all disabled:cursor-default"
+                                          />
+                                      </div>
+                                  ) : (
+                                      <div className={`absolute left-0 top-0 h-10 w-10 rounded-xl flex items-center justify-center shadow-sm z-10 border-4 border-white transition-colors ${ev.type === 'milestone' ? 'bg-amber-100 text-amber-600' : ev.type === 'payment' ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                          {ev.type === 'milestone' ? <Milestone className="h-5 w-5" /> : ev.type === 'payment' ? <Coins className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                                      </div>
+                                  )}
+                                  <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all group-hover:border-gray-200 ${ev.completed ? 'opacity-50' : ''}`}>
+                                      <div className="flex gap-2 mb-2">
+                                          <div className="flex flex-col gap-1 flex-1">
+                                              <div className="flex items-center gap-1">
+                                                  <span className="text-[9px] font-black text-muted-foreground uppercase">{ev.completed ? '计划日期' : '日期'}</span>
+                                                  {setItems ? (
+                                                      <input type="date" className="h-6 text-[10px] font-bold border border-border bg-card rounded px-1.5 shadow-sm outline-none focus:border-primary" value={ev.date} onChange={e => {const n=[...items]; n[idx].date=e.target.value; setItems(n);}} />
+                                                  ) : (
+                                                      <span className="text-[10px] font-bold text-foreground">{ev.date}</span>
+                                                  )}
+                                              </div>
+                                              {ev.completed && (
+                                                  <div className="flex items-center gap-1 animate-in slide-in-from-left-2">
+                                                      <span className="text-[9px] font-black text-emerald-600 uppercase">完成于</span>
+                                                      {setItems ? (
+                                                          <input type="date" className="h-6 text-[10px] font-bold border border-emerald-200 bg-emerald-50/30 text-emerald-700 rounded px-1.5 shadow-sm outline-none focus:border-emerald-500" value={ev.completedAt || ''} onChange={e => {const n=[...items]; n[idx].completedAt=e.target.value; setItems(n);}} />
+                                                      ) : (
+                                                          <span className="text-[10px] font-bold text-emerald-700">{ev.completedAt}</span>
+                                                      )}
+                                                  </div>
+                                              )}
+                                          </div>
                                           {setItems ? (
-                                              <input type="date" className="h-6 text-[10px] font-bold border border-border bg-card rounded px-1.5 shadow-sm outline-none focus:border-primary" value={ev.date} onChange={e => {const n=[...items]; n[idx].date=e.target.value; setItems(n);}} />
+                                              <>
+                                                  <select className="h-7 text-[10px] font-bold border border-border bg-card rounded px-2 shadow-sm outline-none focus:border-primary" value={ev.type} onChange={e => {const n=[...items]; n[idx].type=e.target.value as any; setItems(n);}}>
+                                                      <option value="progress">普通</option><option value="milestone">重要</option><option value="payment">财务</option>
+                                                  </select>
+                                                  <button type="button" onClick={() => confirmCustom('删除', '确定删除？', () => setItems(items.filter((_,i)=>i!==idx)), true)} className="h-7 w-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"><Trash2 className="h-3 w-3"/></button>
+                                              </>
                                           ) : (
-                                              <span className="text-[10px] font-bold text-foreground">{ev.date}</span>
+                                              <button
+                                                  onClick={() => toggleReply(ev.id)}
+                                                  className={`h-7 px-2 flex items-center gap-1 text-[10px] font-bold rounded-lg border border-border hover:bg-muted transition-all ${isExpanded ? 'bg-primary/10 text-primary border-primary/30' : 'text-muted-foreground'}`}
+                                              >
+                                                  <MessageCircle className="h-3.5 w-3.5" />
+                                                  {replies.length > 0 && <span>{replies.length}</span>}
+                                              </button>
                                           )}
                                       </div>
-                                      {ev.completed && (
-                                          <div className="flex items-center gap-1 animate-in slide-in-from-left-2">
-                                              <span className="text-[9px] font-black text-emerald-600 uppercase">完成于</span>
-                                              {setItems ? (
-                                                  <input type="date" className="h-6 text-[10px] font-bold border border-emerald-200 bg-emerald-50/30 text-emerald-700 rounded px-1.5 shadow-sm outline-none focus:border-emerald-500" value={ev.completedAt || ''} onChange={e => {const n=[...items]; n[idx].completedAt=e.target.value; setItems(n);}} />
+                                      {setItems ? (
+                                          <input className={`w-full text-sm font-black bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary outline-none px-1 transition-all placeholder:text-gray-300 mb-1 ${ev.completed ? 'line-through' : ''}`} placeholder="任务名称..." value={ev.title} onChange={e => {const n=[...items]; n[idx].title=e.target.value; setItems(n);}} />
+                                      ) : (
+                                          <h5 className={`text-sm font-black text-foreground mb-1 ${ev.completed ? 'line-through' : ''}`}>{ev.title}</h5>
+                                      )}
+                                      {setItems ? (
+                                          <textarea className={`w-full text-[11px] font-medium text-gray-600 bg-gray-50/50 rounded p-2 border-0 outline-none resize-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-gray-300 ${ev.completed ? 'line-through' : ''}`} placeholder="补充说明..." rows={2} value={ev.description} onChange={e => {const n=[...items]; n[idx].description=e.target.value; setItems(n);}} />
+                                      ) : (
+                                          <p className={`text-[11px] font-medium text-muted-foreground leading-relaxed ${ev.completed ? 'line-through' : ''}`}>{ev.description}</p>
+                                      )}
+                                      {ev.createdBy && (
+                                          <div className="mt-2 flex justify-end">
+                                              <span className="text-[8px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded opacity-60">记录人: {ev.createdBy}</span>
+                                          </div>
+                                      )}
+
+                                      {isViewMode && isExpanded && (
+                                          <div className="mt-3 pt-3 border-t border-gray-100 animate-in slide-in-from-top-2">
+                                              {replyLoading === ev.id ? (
+                                                  <p className="text-[10px] text-muted-foreground text-center py-2">加载中...</p>
                                               ) : (
-                                                  <span className="text-[10px] font-bold text-emerald-700">{ev.completedAt}</span>
+                                                  <>
+                                                      {replies.length === 0 && !userReply && (
+                                                          <p className="text-[10px] text-muted-foreground text-center py-2">暂无回复</p>
+                                                      )}
+                                                      {replies.map(r => (
+                                                          <div key={r.id} className="flex gap-2 mb-2 bg-gray-50 rounded-lg p-2">
+                                                              <div className="flex-1">
+                                                                  <div className="flex items-center justify-between">
+                                                                      <span className="text-[10px] font-bold text-primary">{r.userName}</span>
+                                                                      {currentUser && (currentUser.role === 'admin' || r.userId === currentUser.id) && (
+                                                                          <button onClick={() => handleDeleteReply(ev.id, r.id)} className="text-gray-400 hover:text-red-500">
+                                                                              <Trash className="h-3 w-3" />
+                                                                          </button>
+                                                                      )}
+                                                                  </div>
+                                                                  <p className="text-[11px] text-gray-600">{r.content}</p>
+                                                                  <span className="text-[8px] text-gray-400">{r.updatedAt ? new Date(r.updatedAt).toLocaleString() : ''}</span>
+                                                              </div>
+                                                          </div>
+                                                      ))}
+                                                      {currentUser && (
+                                                          <div className="flex gap-2 mt-2">
+                                                              <input
+                                                                  type="text"
+                                                                  className="flex-1 h-8 text-[11px] font-medium border border-gray-200 rounded-lg px-2 outline-none focus:border-primary"
+                                                                  placeholder={userReply ? '修改回复...' : '添加回复...'}
+                                                                  value={replyDraft[ev.id] || userReply?.content || ''}
+                                                                  onChange={e => setReplyDraft(prev => ({ ...prev, [ev.id]: e.target.value }))}
+                                                                  onKeyDown={e => e.key === 'Enter' && handleSaveReply(ev.id)}
+                                                              />
+                                                              <button
+                                                                  onClick={() => handleSaveReply(ev.id)}
+                                                                  className="h-8 px-3 bg-primary text-white rounded-lg text-[10px] font-bold hover:opacity-90 transition-all flex items-center gap-1"
+                                                              >
+                                                                  <Send className="h-3 w-3" />
+                                                              </button>
+                                                          </div>
+                                                      )}
+                                                  </>
                                               )}
                                           </div>
                                       )}
                                   </div>
-                                  {setItems && (
-                                      <>
-                                          <select className="h-7 text-[10px] font-bold border border-border bg-card rounded px-2 shadow-sm outline-none focus:border-primary" value={ev.type} onChange={e => {const n=[...items]; n[idx].type=e.target.value as any; setItems(n);}}>
-                                              <option value="progress">普通</option><option value="milestone">重要</option><option value="payment">财务</option>
-                                          </select>
-                                          <button type="button" onClick={() => confirmCustom('删除', '确定删除？', () => setItems(items.filter((_,i)=>i!==idx)), true)} className="h-7 w-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"><Trash2 className="h-3 w-3"/></button>
-                                      </>
-                                  )}
                               </div>
-                              {setItems ? (
-                                  <input className={`w-full text-sm font-black bg-transparent border-b border-transparent hover:border-gray-200 focus:border-primary outline-none px-1 transition-all placeholder:text-gray-300 mb-1 ${ev.completed ? 'line-through' : ''}`} placeholder="任务名称..." value={ev.title} onChange={e => {const n=[...items]; n[idx].title=e.target.value; setItems(n);}} />
-                              ) : (
-                                  <h5 className={`text-sm font-black text-foreground mb-1 ${ev.completed ? 'line-through' : ''}`}>{ev.title}</h5>
-                              )}
-                              {setItems ? (
-                                  <textarea className={`w-full text-[11px] font-medium text-gray-600 bg-gray-50/50 rounded p-2 border-0 outline-none resize-none focus:bg-white focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-gray-300 ${ev.completed ? 'line-through' : ''}`} placeholder="补充说明..." rows={2} value={ev.description} onChange={e => {const n=[...items]; n[idx].description=e.target.value; setItems(n);}} />
-                              ) : (
-                                  <p className={`text-[11px] font-medium text-muted-foreground leading-relaxed ${ev.completed ? 'line-through' : ''}`}>{ev.description}</p>
-                              )}
-                              {ev.createdBy && (
-                                  <div className="mt-2 flex justify-end">
-                                      <span className="text-[8px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded opacity-60">记录人: {ev.createdBy}</span>
-                                  </div>
-                              )}
-                          </div>
-                      </div>
-                  ))}
-                  {items.length === 0 && <div className="text-center py-6 opacity-40"><p className="text-xs font-bold text-gray-500">暂无记录</p></div>}
+                          );
+                      })}
+                      {items.length === 0 && <div className="text-center py-6 opacity-40"><p className="text-xs font-bold text-gray-500">暂无记录</p></div>}
+                  </div>
               </div>
           </div>
-      </div>
-  );
+      );
+  };
 
   const handleExport = () => {
       if (!filteredData.length) return;
@@ -938,8 +1061,8 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                  
                  <div className="bg-muted/30 p-12 md:w-1/2 flex flex-col overflow-hidden">
                     <div className="flex-1 min-h-0 flex flex-row gap-8 h-full">
-                        {renderTimelineSection('重要工作记录', Array.isArray(viewProject.timeline) ? viewProject.timeline : [], null, 'primary', false)}
-                        {renderTimelineSection('工作计划', Array.isArray(viewProject.nextPlan) ? viewProject.nextPlan : [], null, 'primary', true)}
+                        {renderTimelineSection('重要工作记录', Array.isArray(viewProject.timeline) ? viewProject.timeline : [], null, 'primary', false, viewProject.id, 'timeline')}
+                        {renderTimelineSection('工作计划', Array.isArray(viewProject.nextPlan) ? viewProject.nextPlan : [], null, 'primary', true, viewProject.id, 'nextPlan')}
                     </div>
                  </div>
              </div>
