@@ -6,11 +6,19 @@ echo "🚀 开始部署..."
 
 # 1. 拉取最新代码
 echo "📥 拉取最新代码..."
-git pull origin docker
+if ! git pull origin docker; then
+    echo "⚠️  git pull 失败，尝试使用 GitHub 镜像..."
+    # 尝试使用 ghproxy 镜像加速
+    git remote set-url origin https://ghproxy.com/https://github.com/iProgramme/fangzhou.git
+    if ! git pull origin docker; then
+        echo "⚠️  镜像也失败了，使用当前本地代码继续构建..."
+    fi
+    # 恢复原始远程地址
+    git remote set-url origin https://github.com/iProgramme/fangzhou.git
+fi
 
 # 2. 构建镜像
 echo "🏗️  构建 Docker 镜像..."
-# 使用腾讯云镜像源加速构建
 docker build -t fangzhou-app .
 
 if [ $? -ne 0 ]; then
@@ -19,7 +27,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # 3. 重启容器
-echo "cel 🔄 重启容器..."
+echo "🔄 重启容器..."
 docker stop fangzhou || true
 docker rm fangzhou || true
 
