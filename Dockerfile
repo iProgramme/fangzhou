@@ -3,8 +3,14 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Use Chinese npm mirror
-RUN npm config set registry https://registry.npmmirror.com
+# Use Chinese npm mirror and apt mirror
+RUN npm config set registry https://registry.npmmirror.com \
+    && sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
 COPY package.json package-lock.json ./
