@@ -109,7 +109,7 @@ export const recordReplies = sqliteTable('record_replies', {
   projectId: text('project_id').notNull(),          // 关联项目ID
   recordType: text('record_type').notNull(),        // 'timeline' | 'nextPlan'
   recordId: text('record_id').notNull(),            // JSON 数组中那条记录的 id
-  userId: text('user_id').references(() => users.id),
+  userId: text('user_id'),
   userName: text('user_name').notNull(),
   content: text('content').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(unixepoch() * 1000)`),

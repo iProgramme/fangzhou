@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Filter, ArrowUpRight, CheckCircle2, Activity, Flag, Coins, Layers, Download } from 'lucide-react';
-import { Department, DEPARTMENT_SLUGS } from '../types';
+import { Calendar, Filter, ArrowUpRight, CheckCircle2, Activity, Flag, Coins, Layers, Download, MessageCircle, Send, Trash } from 'lucide-react';
+import { Department, DEPARTMENT_SLUGS, RecordReply, User } from '../types';
+import { fetchReplies, fetchAllReplies, saveReply, deleteReply } from '../services/api';
 
 interface WorkRecord {
   id: string;
@@ -28,6 +29,16 @@ const WorkSummary: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
+
+  // 回复相关状态
+  const [expandedReplyId, setExpandedReplyId] = useState<string | null>(null);
+  const [repliesMap, setRepliesMap] = useState<Record<string, RecordReply[]>>({});
+  const [replyDraft, setReplyDraft] = useState<Record<string, string>>({});
+  const [replyLoading, setReplyLoading] = useState<string | null>(null);
+  const currentUser: User | null = (() => { try { return JSON.parse(localStorage.getItem('currentUser') || 'null'); } catch { return null; } })();
+
+  // recordType 映射：后端 'record'/'plan' -> 回复 API 'timeline'/'nextPlan'
+  const toApiRecordType = (recordType: 'record' | 'plan'): 'timeline' | 'nextPlan' => recordType === 'plan' ? 'nextPlan' : 'timeline';
 
   // 初始化默认日期范围 (最近一年) - 使用原生 JS 替换 subYears
   useEffect(() => {
@@ -70,9 +81,65 @@ const WorkSummary: React.FC = () => {
       return matchRecordType && matchImportance;
   });
 
+  // 预加载回复数量
+  useEffect(() => {
+      if (records.length === 0) return;
+      const keys = new Set(records.map(r => `${r.projectId}:${r.recordType}`));
+      (async () => {
+          const allReplies: Record<string, RecordReply[]> = {};
+          for (const key of keys) {
+              const [pid, rt] = key.split(':');
+              const apiRt = rt === 'plan' ? 'nextPlan' : 'timeline';
+              const grouped = await fetchAllReplies(pid, apiRt);
+              Object.assign(allReplies, grouped);
+          }
+          setRepliesMap(prev => ({ ...prev, ...allReplies }));
+      })();
+  }, [records]);
+
   // 跳转到项目编辑页面
   const navigateToProjectEdit = (projectId: string) => {
     window.location.hash = `/projects/${projectId}/edit`;
+  };
+
+  // 回复相关函数
+  const toggleReply = async (record: WorkRecord) => {
+    const key = record.id;
+    if (expandedReplyId === key) { setExpandedReplyId(null); return; }
+    setExpandedReplyId(key);
+    if (!repliesMap[key]) {
+      setReplyLoading(key);
+      try {
+        const replies = await fetchReplies(record.projectId, toApiRecordType(record.recordType), record.id);
+        setRepliesMap(prev => ({ ...prev, [key]: replies }));
+      } catch (e) { console.error('Failed to load replies', e); }
+      finally { setReplyLoading(null); }
+    }
+  };
+
+  const handleSaveReply = async (record: WorkRecord) => {
+    if (!currentUser) return;
+    const key = record.id;
+    const content = replyDraft[key] || '';
+    if (!content.trim()) return;
+    try {
+      const saved = await saveReply(record.projectId, toApiRecordType(record.recordType), record.id, currentUser.id, currentUser.name, content);
+      setRepliesMap(prev => {
+        const existing = prev[key] || [];
+        const idx = existing.findIndex(r => r.userId === currentUser.id);
+        const updated = idx >= 0 ? existing.map((r, i) => i === idx ? saved : r) : [...existing, saved];
+        return { ...prev, [key]: updated };
+      });
+      setReplyDraft(prev => ({ ...prev, [key]: '' }));
+    } catch (e) { console.error('Failed to save reply', e); }
+  };
+
+  const handleDeleteReply = async (record: WorkRecord, replyId: string) => {
+    if (!currentUser || !window.confirm('确定删除这条回复？')) return;
+    try {
+      await deleteReply(record.projectId, toApiRecordType(record.recordType), record.id, currentUser.id);
+      setRepliesMap(prev => ({ ...prev, [record.id]: (prev[record.id] || []).filter(r => r.id !== replyId) }));
+    } catch (e) { console.error('Failed to delete reply', e); }
   };
 
   const getRecordTypeBadge = (type: string, recordType: 'record' | 'plan') => {
@@ -323,7 +390,61 @@ const WorkSummary: React.FC = () => {
                                             完成于: {record.completedAt}
                                         </span>
                                     )}
+                                    <button
+                                        onClick={() => toggleReply(record)}
+                                        className={`ml-auto h-7 px-2 flex items-center gap-1 text-[10px] font-bold rounded-lg border border-border hover:bg-muted transition-all ${expandedReplyId === record.id ? 'bg-primary/10 text-primary border-primary/30' : 'text-muted-foreground'}`}
+                                    >
+                                        <MessageCircle className="h-3.5 w-3.5" />
+                                        {(repliesMap[record.id] || []).length > 0 && <span>{repliesMap[record.id].length}</span>}
+                                    </button>
                                 </div>
+                                {expandedReplyId === record.id && (
+                                    <div className="mt-3 pt-3 border-t border-gray-100 animate-in slide-in-from-top-2">
+                                        {replyLoading === record.id ? (
+                                            <p className="text-[10px] text-muted-foreground text-center py-2">加载中...</p>
+                                        ) : (
+                                            <>
+                                                {(repliesMap[record.id] || []).length === 0 && (
+                                                    <p className="text-[10px] text-muted-foreground text-center py-2">暂无回复</p>
+                                                )}
+                                                {(repliesMap[record.id] || []).map(r => (
+                                                    <div key={r.id} className="flex gap-2 mb-2 bg-gray-50 rounded-lg p-2">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-bold text-primary">{r.userName}</span>
+                                                                {currentUser && (currentUser.role === 'admin' || r.userId === currentUser.id) && (
+                                                                    <button onClick={() => handleDeleteReply(record, r.id)} className="text-gray-400 hover:text-red-500">
+                                                                        <Trash className="h-3 w-3" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[11px] text-gray-600">{r.content}</p>
+                                                            <span className="text-[8px] text-gray-400">{r.updatedAt ? new Date(r.updatedAt).toLocaleString() : ''}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {currentUser && (
+                                                    <div className="flex gap-2 mt-2">
+                                                        <input
+                                                            type="text"
+                                                            className="flex-1 h-8 text-[11px] font-medium border border-gray-200 rounded-lg px-2 outline-none focus:border-primary"
+                                                            placeholder={(repliesMap[record.id] || []).find(r => r.userId === currentUser.id) ? '修改回复...' : '添加回复...'}
+                                                            value={replyDraft[record.id] || (repliesMap[record.id] || []).find(r => r.userId === currentUser.id)?.content || ''}
+                                                            onChange={e => setReplyDraft(prev => ({ ...prev, [record.id]: e.target.value }))}
+                                                            onKeyDown={e => e.key === 'Enter' && handleSaveReply(record)}
+                                                        />
+                                                        <button
+                                                            onClick={() => handleSaveReply(record)}
+                                                            className="h-8 px-3 bg-primary text-white rounded-lg text-[10px] font-bold hover:opacity-90 transition-all flex items-center gap-1"
+                                                        >
+                                                            <Send className="h-3 w-3" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                              </div>
                         </div>
                     ))

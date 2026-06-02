@@ -292,6 +292,26 @@ app.get('/api/logs', async (req, res) => {
 });
 
 // 6. 工作记录回复（扁平式：每人每条记录一条回复，可修改删除）
+// 批量获取某个项目+recordType 下所有记录的回复（用于显示回复数量）
+app.get('/api/records/:projectId/:recordType/replies', async (req, res) => {
+    try {
+        const { projectId, recordType } = req.params;
+        const replies = await db.query.recordReplies.findMany({
+            where: and(
+                eq(recordReplies.projectId, projectId),
+                eq(recordReplies.recordType, recordType)
+            )
+        });
+        // 按 recordId 分组
+        const grouped: Record<string, typeof replies> = {};
+        replies.forEach(r => {
+            if (!grouped[r.recordId]) grouped[r.recordId] = [];
+            grouped[r.recordId].push(r);
+        });
+        res.json(grouped);
+    } catch (error) { res.status(500).json({ error: '获取回复失败' }); }
+});
+
 app.get('/api/records/:projectId/:recordType/:recordId/replies', async (req, res) => {
     try {
         const { projectId, recordType, recordId } = req.params;

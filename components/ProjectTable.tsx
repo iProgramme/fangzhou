@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage, User, RecordReply } from '../types';
 import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown, Users, Download, MessageCircle, Send, Trash } from 'lucide-react';
 import { nanoid } from 'nanoid';
-import { fetchReplies, saveReply, deleteReply } from '../services/api';
+import { fetchReplies, fetchAllReplies, saveReply, deleteReply } from '../services/api';
 
 export interface ColumnDef {
   key: keyof Project | 'actions' | 'annualContract' | 'annualCollection' | 'plannedAmount' | 'statusLight';
@@ -270,6 +270,19 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       }
   }, [currentForm.deptAmount, currentForm.collectedAmount, isModalOpen]);
 
+  // 预加载回复数据（编辑弹窗或查看详情时）
+  useEffect(() => {
+      const pid = isModalOpen ? currentForm.id : viewProject?.id;
+      if (!pid) return;
+      (async () => {
+          const [timelineReplies, planReplies] = await Promise.all([
+              fetchAllReplies(pid, 'timeline'),
+              fetchAllReplies(pid, 'nextPlan')
+          ]);
+          setRepliesMap(prev => ({ ...prev, ...timelineReplies, ...planReplies }));
+      })();
+  }, [isModalOpen, currentForm.id, viewProject?.id]);
+
   const filteredData = useMemo(() => {
     return data.filter(item => {
         const searchLower = searchTerm.toLowerCase();
@@ -463,10 +476,12 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
           if (!content.trim()) return;
           try {
               const saved = await saveReply(projectId, recordType, evId, currentUser.id, currentUser.name, content);
-              setRepliesMap(prev => ({
-                  ...prev,
-                  [evId]: prev[evId] ? prev[evId].map(r => r.userId === currentUser.id ? saved : r) : [saved]
-              }));
+              setRepliesMap(prev => {
+                  const existing = prev[evId] || [];
+                  const idx = existing.findIndex(r => r.userId === currentUser.id);
+                  const updated = idx >= 0 ? existing.map((r, i) => i === idx ? saved : r) : [...existing, saved];
+                  return { ...prev, [evId]: updated };
+              });
               setReplyDraft(prev => ({ ...prev, [evId]: '' }));
           } catch (e) {
               console.error('Failed to save reply', e);
@@ -558,14 +573,15 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                                   </div>
                                               )}
                                           </div>
-                                          {setItems ? (
+                                          {setItems && (
                                               <>
                                                   <select className="h-7 text-[10px] font-bold border border-border bg-card rounded px-2 shadow-sm outline-none focus:border-primary" value={ev.type} onChange={e => {const n=[...items]; n[idx].type=e.target.value as any; setItems(n);}}>
                                                       <option value="progress">普通</option><option value="milestone">重要</option><option value="payment">财务</option>
                                                   </select>
                                                   <button type="button" onClick={() => confirmCustom('删除', '确定删除？', () => setItems(items.filter((_,i)=>i!==idx)), true)} className="h-7 w-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"><Trash2 className="h-3 w-3"/></button>
                                               </>
-                                          ) : (
+                                          )}
+                                          {projectId && recordType && (
                                               <button
                                                   onClick={() => toggleReply(ev.id)}
                                                   className={`h-7 px-2 flex items-center gap-1 text-[10px] font-bold rounded-lg border border-border hover:bg-muted transition-all ${isExpanded ? 'bg-primary/10 text-primary border-primary/30' : 'text-muted-foreground'}`}
@@ -591,7 +607,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                           </div>
                                       )}
 
-                                      {isViewMode && isExpanded && (
+                                      {isExpanded && projectId && recordType && (
                                           <div className="mt-3 pt-3 border-t border-gray-100 animate-in slide-in-from-top-2">
                                               {replyLoading === ev.id ? (
                                                   <p className="text-[10px] text-muted-foreground text-center py-2">加载中...</p>
@@ -1016,8 +1032,8 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                       </div>
                       <div className="lg:col-span-6 border-l border-border pl-8 flex flex-col h-full overflow-hidden bg-muted/10 rounded-r-3xl -my-8 py-8">
                           <div className="flex-1 min-h-0 flex flex-row gap-6 h-full">
-                              {renderTimelineSection('重要工作记录', formTimeline, setFormTimeline, 'primary', false)}
-                              {renderTimelineSection('工作计划', formNextPlan, setFormNextPlan, 'primary', true)}
+                              {renderTimelineSection('重要工作记录', formTimeline, setFormTimeline, 'primary', false, currentForm.id, 'timeline')}
+                              {renderTimelineSection('工作计划', formNextPlan, setFormNextPlan, 'primary', true, currentForm.id, 'nextPlan')}
                           </div>
                       </div>
                   </div>

@@ -182,6 +182,17 @@ export const fetchLogs = async (): Promise<OperationLog[]> => {
 };
 
 // --- Record Replies ---
+export const fetchAllReplies = async (projectId: string, recordType: 'timeline' | 'nextPlan'): Promise<Record<string, RecordReply[]>> => {
+    try {
+        const res = await fetch(`${API_BASE}/records/${projectId}/${recordType}/replies`);
+        if (!res.ok) throw new Error('获取回复失败');
+        return res.json();
+    } catch (e) {
+        console.warn('获取回复失败', e);
+        return {};
+    }
+};
+
 export const fetchReplies = async (projectId: string, recordType: 'timeline' | 'nextPlan', recordId: string): Promise<RecordReply[]> => {
     try {
         const res = await fetch(`${API_BASE}/records/${projectId}/${recordType}/${recordId}/replies`);
