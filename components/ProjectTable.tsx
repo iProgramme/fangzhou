@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, createPortal } from 'react';
+import ReactDOM from 'react-dom';
 import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage, User, RecordReply } from '../types';
 import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, Users, Download, MessageCircle, Send, Trash } from 'lucide-react';
 import { nanoid } from 'nanoid';
@@ -18,6 +19,58 @@ interface ProjectTableProps {
 }
 
 const formatMoney = (val: any) => val ? `¥${Number(val).toLocaleString()}` : '-';
+
+// --- 表头多选筛选组件 ---
+const HeaderMultiFilter = ({ value, onChange, options }: { value: string, onChange: (val: string) => void, options: { label: string }[] }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const [pos, setPos] = useState({ top: 0, left: 0 });
+    const selected = useMemo(() => value ? value.split(',').map(s => s.trim()).filter(Boolean) : [], [value]);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false); };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleToggle = () => {
+        if (!isOpen && ref.current) {
+            const rect = ref.current.getBoundingClientRect();
+            setPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX });
+        }
+        setIsOpen(!isOpen);
+    };
+
+    const toggle = (label: string) => {
+        const newSelected = selected.includes(label) ? selected.filter(s => s !== label) : [...selected, label];
+        onChange(newSelected.join(','));
+    };
+
+    return (
+        <div className="relative" ref={ref}>
+            <div onClick={handleToggle} className="cursor-pointer">
+                <Filter className={`h-4 w-4 ${selected.length > 0 ? 'text-primary' : 'opacity-30'}`} />
+            </div>
+            {isOpen && ReactDOM.createPortal(
+                <div className="fixed z-[9999] w-40 bg-card border border-border rounded-xl shadow-xl" style={{ top: pos.top, left: pos.left }}>
+                    <div className="flex border-b border-border">
+                        <button onClick={() => onChange(options.map(o => o.label).join(','))} className="flex-1 px-2 py-1.5 text-[10px] font-bold text-primary hover:bg-muted transition-colors">全选</button>
+                        <button onClick={() => onChange('')} className="flex-1 px-2 py-1.5 text-[10px] font-bold text-muted-foreground hover:bg-muted transition-colors">清除</button>
+                    </div>
+                    <div className="max-h-52 overflow-y-auto">
+                        {options.map(opt => (
+                            <label key={opt.label} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-xs">
+                                <input type="checkbox" checked={selected.includes(opt.label)} onChange={() => toggle(opt.label)} className="rounded" />
+                                <span>{opt.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+};
 
 // --- 自定义美化多选组件 (支持分组/树形展示) ---
 const CustomMultiSelect = ({ value, onChange, options, isTree = false }: { value: string, onChange: (val: string) => void, options: any[], isTree?: boolean }) => {
@@ -298,7 +351,11 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
              if (advancedFilters.minAmount && amount < Number(advancedFilters.minAmount)) return false;
              if (advancedFilters.maxAmount && amount > Number(advancedFilters.maxAmount)) return false;
         }
-        for (const [key, filterVal] of Object.entries(columnFilters)) { if (filterVal && item[key as keyof Project] !== filterVal) return false; }
+        for (const [key, filterVal] of Object.entries(columnFilters)) {
+            if (!filterVal) continue;
+            const selectedValues = filterVal.split(',').map(s => s.trim()).filter(Boolean);
+            if (selectedValues.length > 0 && !selectedValues.includes(item[key as keyof Project] as string)) return false;
+        }
         return true;
     });
   }, [data, searchTerm, showAdvancedSearch, advancedFilters, columnFilters]);
@@ -792,7 +849,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                                         <ArrowUpDown className={`h-4 w-4 ${sortConfig?.key === 'statusLight' ? 'text-primary' : 'opacity-30'}`} />
                                     </button>
                                 )}
-                                {isFilterable && <div className="relative cursor-pointer"><Filter className={`h-4 w-4 ${activeFilter ? 'text-primary' : 'opacity-30'}`} /><select className="absolute inset-0 opacity-0 cursor-pointer" value={activeFilter || ''} onChange={(e) => setColumnFilters(prev => ({ ...prev, [col.key as string]: e.target.value }))}><option value="">全部</option>{dictionaries![col.dictKey!].map((opt) => (<option key={opt.label} value={opt.label}>{opt.label}</option>))}</select></div>}</div>
+                                {isFilterable && <HeaderMultiFilter value={activeFilter || ''} onChange={(val) => setColumnFilters(prev => ({ ...prev, [col.key as string]: val }))} options={dictionaries![col.dictKey!] || []} />}</div>
                         </th>
                     );
                 })}
