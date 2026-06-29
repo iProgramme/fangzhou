@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Project, SystemDictionary, AnnualData, TimelineEvent, ProjectStage, User, RecordReply } from '../types';
-import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ChevronDown, Users, Download, MessageCircle, Send, Trash } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Trash2, X, FileText, Check, X as XIcon, ChevronLeft,ChevronRight, Coins, Filter, History, Milestone, Clock, CheckCircle2, HelpCircle, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown, Users, Download, MessageCircle, Send, Trash } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { fetchReplies, fetchAllReplies, saveReply, deleteReply } from '../services/api';
 
@@ -206,6 +206,7 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
   const columnToggleRef = useRef<HTMLDivElement>(null);
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
   useEffect(() => {
       const saved = localStorage.getItem(storageKey);
@@ -302,7 +303,20 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
     });
   }, [data, searchTerm, showAdvancedSearch, advancedFilters, columnFilters]);
 
-  const paginatedData = filteredData.slice((currentPage-1)*pageSize, currentPage*pageSize);
+  const sortedData = useMemo(() => {
+    if (!sortConfig) return filteredData;
+    const statusOrder: Record<string, number> = { red: 0, yellow: 1, green: 2, white: 3 };
+    return [...filteredData].sort((a, b) => {
+      if (sortConfig.key === 'statusLight') {
+        const aVal = statusOrder[a.statusLight] ?? 4;
+        const bVal = statusOrder[b.statusLight] ?? 4;
+        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+      return 0;
+    });
+  }, [filteredData, sortConfig]);
+
+  const paginatedData = sortedData.slice((currentPage-1)*pageSize, currentPage*pageSize);
   const totalPages = Math.ceil(filteredData.length / pageSize);
 
   const moveColumn = (index: number, direction: 'up' | 'down') => {
@@ -771,7 +785,14 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
                     const activeFilter = columnFilters[col.key as string];
                     return (
                         <th key={col.key as string} className="h-10 px-4 font-black text-muted-foreground whitespace-nowrap text-sm uppercase tracking-wider">
-                            <div className="flex items-center gap-1.5"><span>{header}</span>{isFilterable && <div className="relative cursor-pointer"><Filter className={`h-4 w-4 ${activeFilter ? 'text-primary' : 'opacity-30'}`} /><select className="absolute inset-0 opacity-0 cursor-pointer" value={activeFilter || ''} onChange={(e) => setColumnFilters(prev => ({ ...prev, [col.key as string]: e.target.value }))}><option value="">全部</option>{dictionaries![col.dictKey!].map((opt) => (<option key={opt.label} value={opt.label}>{opt.label}</option>))}</select></div>}</div>
+                            <div className="flex items-center gap-1.5">
+                                <span>{header}</span>
+                                {col.key === 'statusLight' && (
+                                    <button onClick={() => setSortConfig(prev => { if (prev?.key === 'statusLight') { if (prev.direction === 'asc') return { key: 'statusLight', direction: 'desc' }; return null; } return { key: 'statusLight', direction: 'asc' }; })} className="cursor-pointer hover:text-primary" title="点击排序">
+                                        <ArrowUpDown className={`h-4 w-4 ${sortConfig?.key === 'statusLight' ? 'text-primary' : 'opacity-30'}`} />
+                                    </button>
+                                )}
+                                {isFilterable && <div className="relative cursor-pointer"><Filter className={`h-4 w-4 ${activeFilter ? 'text-primary' : 'opacity-30'}`} /><select className="absolute inset-0 opacity-0 cursor-pointer" value={activeFilter || ''} onChange={(e) => setColumnFilters(prev => ({ ...prev, [col.key as string]: e.target.value }))}><option value="">全部</option>{dictionaries![col.dictKey!].map((opt) => (<option key={opt.label} value={opt.label}>{opt.label}</option>))}</select></div>}</div>
                         </th>
                     );
                 })}
@@ -830,11 +851,17 @@ const ProjectTable: React.FC<ProjectTableProps> = ({
       </div>
 
       <div className="flex items-center justify-between py-2 text-sm font-black text-muted-foreground tracking-widest border-t border-border uppercase">
-          <div className="flex items-center gap-4"><span>共 {filteredData.length} 条</span><div className="flex items-center gap-1.5"><span>显示:</span><select className="border-none bg-muted rounded px-1.5 py-0.5 text-foreground" value={pageSize} onChange={e => {setPageSize(Number(e.target.value)); setCurrentPage(1);}}>{[10, 20, 50, 100].map(s => (<option key={s} value={s}>{s}</option>))}</select></div></div>
-          <div className="flex items-center gap-2">
-              <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-1.5 border border-border rounded-lg hover:bg-muted disabled:opacity-20"><ChevronLeft className="h-4 w-4"/></button>
-              <span className="bg-muted px-3 py-1 rounded-lg text-foreground font-black">{currentPage} / {totalPages || 1}</span>
-              <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 border border-border rounded-lg hover:bg-muted disabled:opacity-20"><ChevronRight className="h-4 w-4"/></button>
+          <div className="flex items-center gap-4">
+              <span>共 {filteredData.length} 条</span>
+              <div className="flex items-center gap-1.5">
+                  <span>显示:</span>
+                  <select className="border-none bg-muted rounded px-1.5 py-0.5 text-foreground" value={pageSize} onChange={e => {setPageSize(Number(e.target.value)); setCurrentPage(1);}}>{[10, 20, 50, 100].map(s => (<option key={s} value={s}>{s}</option>))}</select>
+              </div>
+              <div className="flex items-center gap-2">
+                  <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-1.5 border border-border rounded-lg hover:bg-muted disabled:opacity-20"><ChevronLeft className="h-4 w-4"/></button>
+                  <span className="bg-muted px-3 py-1 rounded-lg text-foreground font-black">{currentPage} / {totalPages || 1}</span>
+                  <button disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-1.5 border border-border rounded-lg hover:bg-muted disabled:opacity-20"><ChevronRight className="h-4 w-4"/></button>
+              </div>
           </div>
       </div>
 
