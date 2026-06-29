@@ -23,19 +23,25 @@ const formatMoney = (val: any) => val ? `¥${Number(val).toLocaleString()}` : '-
 // --- 表头多选筛选组件 ---
 const HeaderMultiFilter = ({ value, onChange, options }: { value: string, onChange: (val: string) => void, options: { label: string }[] }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
     const [pos, setPos] = useState({ top: 0, left: 0 });
     const selected = useMemo(() => value ? value.split(',').map(s => s.trim()).filter(Boolean) : [], [value]);
 
     useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false); };
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as Node;
+            if (triggerRef.current?.contains(target)) return;
+            if (dropdownRef.current?.contains(target)) return;
+            setIsOpen(false);
+        };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const handleToggle = () => {
-        if (!isOpen && ref.current) {
-            const rect = ref.current.getBoundingClientRect();
+        if (!isOpen && triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
             setPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX });
         }
         setIsOpen(!isOpen);
@@ -47,12 +53,12 @@ const HeaderMultiFilter = ({ value, onChange, options }: { value: string, onChan
     };
 
     return (
-        <div className="relative" ref={ref}>
+        <div className="relative" ref={triggerRef}>
             <div onClick={handleToggle} className="cursor-pointer">
                 <Filter className={`h-4 w-4 ${selected.length > 0 ? 'text-primary' : 'opacity-30'}`} />
             </div>
             {isOpen && ReactDOM.createPortal(
-                <div className="fixed z-[9999] w-40 bg-card border border-border rounded-xl shadow-xl" style={{ top: pos.top, left: pos.left }}>
+                <div ref={dropdownRef} className="fixed z-[9999] w-40 bg-card border border-border rounded-xl shadow-xl" style={{ top: pos.top, left: pos.left }}>
                     <div className="flex border-b border-border">
                         <button onClick={() => onChange(options.map(o => o.label).join(','))} className="flex-1 px-2 py-1.5 text-[10px] font-bold text-primary hover:bg-muted transition-colors">全选</button>
                         <button onClick={() => onChange('')} className="flex-1 px-2 py-1.5 text-[10px] font-bold text-muted-foreground hover:bg-muted transition-colors">清除</button>
