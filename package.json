@@ -14,13 +14,13 @@
     "db:seed": "tsx seed.ts"
   },
   "dependencies": {
+    "better-sqlite3": "^11.8.1",
     "concurrently": "^9.2.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.1",
     "express": "^5.2.1",
     "lucide-react": "^0.561.0",
-    "better-sqlite3": "^11.8.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
@@ -29,10 +29,10 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.19.3",
-    "@types/better-sqlite3": "^7.6.12",
     "@vitejs/plugin-react": "^5.0.0",
     "drizzle-kit": "^0.31.8",
     "nanoid": "^5.1.6",

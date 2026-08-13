@@ -101,6 +101,60 @@
       body {
         font-family: "Outfit", sans-serif;
       }
+      /* ===== AI 对话 Markdown 增强样式 ===== */
+      .ai-markdown table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      .ai-markdown thead th {
+        background: hsl(var(--primary) / 0.08);
+        font-weight: 700;
+      }
+      .ai-markdown tbody tr:nth-child(even) {
+        background: hsl(var(--muted) / 0.35);
+      }
+      .ai-markdown tbody tr:hover {
+        background: hsl(var(--primary) / 0.05);
+      }
+      .ai-markdown th,
+      .ai-markdown td {
+        border-bottom: 1px solid hsl(var(--border) / 0.6);
+        padding: 6px 12px;
+        text-align: left;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .ai-markdown .task-list-item {
+        list-style: none;
+      }
+      .dark .ai-markdown thead th {
+        background: hsl(var(--primary) / 0.12);
+      }
+      .dark .ai-markdown tbody tr:nth-child(even) {
+        background: hsl(var(--muted) / 0.3);
+      }
+      .ai-markdown code:not(pre code) {
+        background: hsl(var(--primary) / 0.1);
+        color: hsl(var(--primary));
+        border-radius: 4px;
+        padding: 1px 6px;
+        font-size: 0.85em;
+        font-weight: 600;
+      }
+      .ai-markdown pre {
+        background: hsl(var(--muted));
+        border-radius: 12px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .ai-markdown pre code {
+        background: transparent;
+        color: inherit;
+        padding: 0;
+        font-weight: 400;
+      }
     </style>
   <script type="importmap">
 {
